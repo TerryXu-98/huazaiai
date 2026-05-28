@@ -4,7 +4,7 @@
  */
 
 html[data-theme-style="tech"][data-theme-mode="dark"] {
-  --hz-bg: #080808;
+  --hz-bg: #3C3C3C;
   --hz-bg-soft: #0e0e0e;
   --hz-surface: rgba(18, 18, 18, 0.92);
   --hz-surface-strong: rgba(27, 27, 27, 0.96);

@@ -2590,7 +2590,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       : isDark ? '#303030' : '#c7c7c7';
   const bgColor = isPixel
     ? isDark ? '#1F1A14' : '#FAF3E7'
-    : isDark ? '#080808' : '#e6e6e6';
+    : isDark ? '#3C3C3C' : '#e6e6e6';
 
   const memoNodeTypes = useMemo(() => nodeTypes, []);
   const memoEdgeTypes = useMemo(() => edgeTypes, []);
