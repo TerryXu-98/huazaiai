@@ -311,17 +311,22 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   const headerLabel = meta ? `上传${meta.label}` : '上传素材';
   const layerOnly = !!url && !selected;
   const mediaInfo = fileName || (uploadType ? KIND_META[uploadType].label : 'Upload');
+  const mediaActionClass = `flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${
+    isDark
+      ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900 hover:text-white'
+      : 'border-black/10 bg-white/92 text-zinc-700 hover:bg-white hover:text-zinc-950'
+  }`;
+  const dangerActionClass = `flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${
+    isDark
+      ? 'border-red-400/25 bg-zinc-950/88 text-red-200 hover:bg-red-500/15'
+      : 'border-red-500/20 bg-white/92 text-red-600 hover:bg-red-50'
+  }`;
 
-  if (url && uploadType === 'image' && meta) {
+  if (url && uploadType && meta) {
     return (
       <div
-        className="huazai-image-layer group relative bg-transparent"
-        style={{
-          width: size.w,
-          height: size.h,
-          outline: selected ? `1px solid ${handleColor}` : 'none',
-          outlineOffset: 0,
-        }}
+        className="huazai-image-layer group relative mt-8 overflow-visible rounded-none bg-transparent"
+        style={{ width: size.w, height: size.h }}
       >
         <input
           ref={fileInputRef}
@@ -341,60 +346,89 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
             opacity: selected ? 1 : 0,
             pointerEvents: selected ? 'all' : 'none',
           }}
-          title={`输出 ${meta.label}`}
+          title={`Output ${meta.label}`}
         />
-        {selected && (
-          <>
-            <div className="pointer-events-none absolute -top-8 left-0 right-0 z-30 flex items-center justify-between gap-2">
-              <div className={`max-w-[160px] truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
-                isDark ? 'border-white/10 bg-zinc-950/88 text-white/70' : 'border-black/10 bg-white/92 text-zinc-600'
-              }`}>
-                {fileSize > 0 ? `${mediaInfo} · ${(fileSize / 1024).toFixed(1)} KB` : mediaInfo}
-              </div>
-              <div className="pointer-events-auto flex items-center gap-1">
-                <button type="button" className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${isDark ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900' : 'border-black/10 bg-white/92 text-zinc-700 hover:bg-white'}`} title="编辑" onMouseDown={(e) => e.stopPropagation()} onClick={openEdit}>
-                  <Edit3 size={13} />
-                </button>
-                <button type="button" className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${isDark ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900' : 'border-black/10 bg-white/92 text-zinc-700 hover:bg-white'}`} title="下载" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); void downloadAsset(url, fileName || 'image.png'); }}>
-                  <Download size={13} />
-                </button>
-                <button type="button" className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${isDark ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900' : 'border-black/10 bg-white/92 text-zinc-700 hover:bg-white'}`} title="替换" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); triggerPick(); }}>
-                  <UploadIcon size={13} />
-                </button>
-                <button type="button" className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${isDark ? 'border-red-400/25 bg-zinc-950/88 text-red-200 hover:bg-red-500/15' : 'border-red-500/20 bg-white/92 text-red-600 hover:bg-red-50'}`} title="清空" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleReset(); }}>
-                  <X size={13} />
-                </button>
-              </div>
-            </div>
-            <ResizableCorners
-              selected={selected}
-              minWidth={80}
-              minHeight={80}
-              accent={handleColor}
-              onResize={(_e, p) => setSize({ w: p.width, h: p.height })}
-            />
-          </>
+        <div className={`pointer-events-none absolute -top-8 left-0 right-0 z-30 flex items-center justify-between gap-2 transition-opacity ${
+          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}>
+          <div className={`max-w-[170px] truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
+            isDark ? 'border-white/10 bg-zinc-950/88 text-white/70' : 'border-black/10 bg-white/92 text-zinc-600'
+          }`}>
+            {fileSize > 0 ? `${mediaInfo} / ${(fileSize / 1024).toFixed(1)} KB` : mediaInfo}
+          </div>
+          <div className="pointer-events-auto flex items-center gap-1">
+            {uploadType === 'image' && (
+              <button type="button" className={mediaActionClass} title="Edit" onMouseDown={(e) => e.stopPropagation()} onClick={openEdit}>
+                <Edit3 size={13} />
+              </button>
+            )}
+            <button type="button" className={mediaActionClass} title="Download" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); void downloadAsset(url, fileName || (uploadType === 'video' ? 'video.mp4' : uploadType === 'audio' ? 'audio.mp3' : 'image.png')); }}>
+              <Download size={13} />
+            </button>
+            <button type="button" className={mediaActionClass} title="Replace" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); triggerPick(); }}>
+              <UploadIcon size={13} />
+            </button>
+            <button type="button" className={dangerActionClass} title="Clear" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleReset(); }}>
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+        {uploadType === 'image' && (
+          <img
+            src={url}
+            alt={fileName}
+            className={`block w-full select-none object-contain ${size.h ? 'h-full' : 'h-auto'}`}
+            style={{ background: 'transparent' }}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
+            data-drag-source
+            data-drag-kind="image"
+            data-drag-url={url}
+            data-drag-preview={url}
+            data-drag-node-id={id}
+            onMouseDown={(e) =>
+              beginMaterialDrag(e, { kind: 'image', url, sourceNodeId: id, previewUrl: url })
+            }
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              openEdit();
+            }}
+          />
         )}
-        <img
-          src={url}
-          alt={fileName}
-          className={`block w-full select-none object-contain ${size.h ? 'h-full' : 'h-auto'}`}
-          style={{ background: 'transparent' }}
-          draggable={false}
-          onDragStart={(e) => e.preventDefault()}
-          data-drag-source
-          data-drag-kind="image"
-          data-drag-url={url}
-          data-drag-preview={url}
-          data-drag-node-id={id}
-          onMouseDown={(e) =>
-            beginMaterialDrag(e, { kind: 'image', url, sourceNodeId: id, previewUrl: url })
-          }
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            openEdit();
-          }}
-        />
+        {uploadType === 'video' && (
+          <video
+            src={url}
+            controls
+            className={`block w-full select-none object-contain ${size.h ? 'h-full' : 'h-auto'}`}
+            style={{ background: 'transparent' }}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
+            data-drag-source
+            data-drag-kind="video"
+            data-drag-url={url}
+            data-drag-preview={url}
+            data-drag-node-id={id}
+            onMouseDown={(e) =>
+              beginMaterialDrag(e, { kind: 'video', url, sourceNodeId: id, previewUrl: url })
+            }
+          />
+        )}
+        {uploadType === 'audio' && (
+          <audio
+            src={url}
+            controls
+            className="w-full"
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
+            data-drag-source
+            data-drag-kind="audio"
+            data-drag-url={url}
+            data-drag-node-id={id}
+            onMouseDown={(e) =>
+              beginMaterialDrag(e, { kind: 'audio', url, sourceNodeId: id })
+            }
+          />
+        )}
         {editingUrl && (
           <ImageEditModal
             srcUrl={editingUrl}

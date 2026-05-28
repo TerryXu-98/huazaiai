@@ -104,8 +104,8 @@ const DrawingBoardNode = (p: NodeProps) => {
             minWidth={MIN_W}
             minHeight={MIN_H}
             onResize={handleResize}
-            className={`t8-resize-handle t8-resize-handle--tech t8-resize-handle--tech-dark t8-resize-handle--${position}`}
-            style={{ ['--t8-resize-accent' as any]: COLOR } as CSSProperties}
+            className={`huazai-resize-handle huazai-resize-handle--tech huazai-resize-handle--tech-dark huazai-resize-handle--${position}`}
+            style={{ ['--huazai-resize-accent' as any]: COLOR } as CSSProperties}
           />
         ))}
 

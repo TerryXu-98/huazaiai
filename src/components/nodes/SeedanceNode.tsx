@@ -356,12 +356,13 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
     <div
       {...dropProps}
       onClickCapture={() => setMenuOpen(true)}
-      className={`group relative mt-8 w-[300px] rounded-none border transition-all ${
-        selected ? 'shadow-2xl shadow-zinc-950/20' : ''
-      } ${isDark ? 'border-white/10 bg-zinc-950/88' : 'border-black/10 bg-white/88'}`}
+      className="group relative mt-8 w-[300px] overflow-visible rounded-none bg-transparent transition-all"
       style={{
-        backdropFilter: 'blur(8px)',
-        boxShadow: isAccepting ? '0 0 0 2px rgba(52,211,153,.45), 0 12px 30px rgba(52,211,153,.18)' : undefined,
+        background: 'transparent',
+        borderRadius: 0,
+        outline: 'none',
+        outlineOffset: 0,
+        boxShadow: isAccepting ? '0 0 0 3px rgba(34,197,94,0.25)' : undefined,
       }}
     >
       <Handle type="target" position={Position.Left} className={`!bg-fuchsia-400 !border-0 ${handleVisibilityClass}`} />

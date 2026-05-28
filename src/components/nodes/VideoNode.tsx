@@ -426,14 +426,13 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     <div
       {...dropProps}
       onClickCapture={() => setMenuOpen(true)}
-      className={`group relative mt-8 rounded-xl transition-all w-[300px] ${
-        selected ? 'shadow-2xl shadow-zinc-950/20' : isAccepting ? '' : ''
-      }`}
+      className="group relative mt-8 w-[300px] rounded-none bg-transparent transition-all"
       style={{
-        background: isDark ? 'rgba(12,12,14,.92)' : 'rgba(255,255,255,.92)',
-        backdropFilter: 'blur(8px)',
-        boxShadow: isAccepting ? '0 0 0 2px rgba(52,211,153,.45), 0 12px 30px rgba(52,211,153,.18)' : undefined,
-        border: isDark ? '1px solid rgba(255,255,255,.08)' : '1px solid rgba(0,0,0,.08)',
+        background: 'transparent',
+        borderRadius: 0,
+        outline: 'none',
+        outlineOffset: 0,
+        boxShadow: isAccepting ? '0 0 0 3px rgba(34,197,94,0.25)' : undefined,
       }}
     >
       <Handle type="target" position={Position.Left} className={`!bg-rose-400 !border-0 ${handleVisibilityClass}`} />

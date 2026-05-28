@@ -338,8 +338,8 @@ html[data-theme-style="tech"] .react-flow__handle {
   border: 1px solid var(--hz-bg) !important;
 }
 
-html[data-theme-style="tech"] .t8-resize-handle--tech-dark,
-html[data-theme-style="tech"] .t8-resize-handle--tech-light {
+html[data-theme-style="tech"] .huazai-resize-handle--tech-dark,
+html[data-theme-style="tech"] .huazai-resize-handle--tech-light {
   background: var(--hz-surface-strong);
   border-color: var(--hz-accent);
   border-radius: 4px;

@@ -15,7 +15,7 @@ import { useThemeStore } from '../../stores/theme';
  * 用法 (节点 root 内任意位置, 推荐紧贴 Handle 之后):
  *   <ResizableCorners selected={selected} minWidth={220} minHeight={140} accent="#5eead4" />
  *
- * 视觉样式定义在 src/styles/index.css 末尾 (.t8-resize-handle*)
+ * 视觉样式定义在 src/styles/index.css 末尾 (.huazai-resize-handle*)
  */
 interface Props {
   selected?: boolean;
@@ -55,7 +55,7 @@ export default function ResizableCorners({
   const themeMode = isDark ? 'dark' : 'light';
   // 科技风用 accent 作 CSS 变量; 像素风忽略, 使用 theme-pixel.css 中的固定糖果色
   const styleVars = !isPixel
-    ? ({ ['--t8-resize-accent' as any]: accent } as React.CSSProperties)
+    ? ({ ['--huazai-resize-accent' as any]: accent } as React.CSSProperties)
     : undefined;
 
   return (
@@ -70,7 +70,7 @@ export default function ResizableCorners({
           maxWidth={maxWidth}
           maxHeight={maxHeight}
           onResize={onResize}
-          className={`t8-resize-handle t8-resize-handle--${themeStyle} t8-resize-handle--${themeStyle}-${themeMode} t8-resize-handle--${p}`}
+          className={`huazai-resize-handle huazai-resize-handle--${themeStyle} huazai-resize-handle--${themeStyle}-${themeMode} huazai-resize-handle--${p}`}
           style={styleVars}
         />
       ))}
