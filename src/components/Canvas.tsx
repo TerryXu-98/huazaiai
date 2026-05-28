@@ -119,8 +119,8 @@ const SPECIFIC_NODES: Record<string, any> = {
 
 // 鑺傜偣鍒濆 data(鐢ㄤ簬鍖哄垎鍏变韩缁勪欢鐨?kind/preset/model 绛?
 const INITIAL_DATA: Record<string, Record<string, any>> = {
-  image: { model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '1K', referenceImages: [] },
-  edit: { mode: 'edit', model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '1K', referenceImages: [] },
+  image: { model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '2K', referenceImages: [] },
+  edit: { mode: 'edit', model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '2K', referenceImages: [] },
   seedance: {
     model: 'doubao-seedance-2-0-fast-260128',
     duration: 5,

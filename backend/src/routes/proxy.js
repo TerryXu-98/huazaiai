@@ -154,6 +154,15 @@ function aspectToGptSize(aspectRatio, sizeLevel) {
   return GPT_SIZE_MAP[key] || '1024x1024';
 }
 
+function parsePixelSize(size) {
+  const m = String(size || '').trim().match(/^(\d{2,5})x(\d{2,5})$/i);
+  if (!m) return null;
+  const width = Number(m[1]);
+  const height = Number(m[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
 // 将 base64 dataURL / http(s) URL 转成 multipart Buffer
 async function refToBuffer(ref) {
   if (typeof ref !== 'string' || !ref) return null;
@@ -256,8 +265,12 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
     form.append('quality', quality || 'auto');
     form.append('moderation', 'auto');
     form.append('size', px);
+    form.append('image_size', lvlUpper);
+    form.append('aspect_ratio', isAuto ? '1:1' : ar);
     form.append('aspectRatio', isAuto ? '' : ar); // 主项目用 camelCase
     form.append('resolution', lvlLower);          // 主项目用小写 1k/2k/4k
+
+    form.append('resolution_label', lvlUpper);
 
     if (hasRefs) {
       for (let i = 0; i < refs.length; i++) {
@@ -268,7 +281,8 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
       }
     } else {
       // 主项目 line 2861: 无参考图时创建 1024x1024 白图占位
-      const whiteBuf = getWhitePng(1024, 1024);
+      const target = parsePixelSize(px) || { width: 1024, height: 1024 };
+      const whiteBuf = getWhitePng(target.width, target.height);
       const blob = new Blob([whiteBuf], { type: 'image/png' });
       form.append('image', blob, 'blank.png');
     }
