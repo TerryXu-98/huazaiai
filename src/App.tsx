@@ -104,7 +104,7 @@ const BOTTOM_CORE_NODES: Array<{
 function App() {
   const { theme, toggleTheme } = useThemeStore();
   const { settings, load: loadSettings } = useApiKeysStore();
-  const { canvases, createCanvas, deleteCanvas, loadCanvases, loading: canvasLoading, setActive } = useCanvasStore();
+  const { canvases, createCanvas, deleteCanvas, loadCanvases, loading: canvasLoading, setActive, clearActive } = useCanvasStore();
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -324,6 +324,23 @@ function App() {
       await loadCanvases();
     } finally {
       window.setTimeout(() => setSavingCanvas(false), 350);
+    }
+  };
+
+  const returnToStartPage = async () => {
+    if (savingCanvas) return;
+    setSavingCanvas(true);
+    try {
+      await saveCanvasRef.current?.();
+      await loadCanvases();
+    } catch (e) {
+      console.error('返回启动页前保存画布失败', e);
+    } finally {
+      setSavingCanvas(false);
+      setMenuOpen(false);
+      setToolMenuOpen(false);
+      clearActive();
+      setProjectStarted(false);
     }
   };
 
@@ -803,7 +820,15 @@ function App() {
         }`}
       >
         <div className="flex items-center gap-3">
-          <img src="/liang.svg" alt="" className="h-6 w-6" />
+          <button
+            type="button"
+            onClick={() => void returnToStartPage()}
+            disabled={savingCanvas}
+            className={`flex h-8 w-8 items-center justify-center rounded-full disabled:opacity-50 ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+            title="返回启动页"
+          >
+            <img src="/liang.svg" alt="" className="h-6 w-6" draggable={false} />
+          </button>
           <button
             onClick={() => setMenuOpen((v) => !v)}
             className={`h-8 w-8 rounded-full flex items-center justify-center ${isDark ? 'hover:bg-white/10 text-white/80' : 'hover:bg-black/5 text-zinc-700'}`}

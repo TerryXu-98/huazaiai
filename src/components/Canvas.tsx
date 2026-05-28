@@ -929,9 +929,43 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   }, []);
 
   const handleImportFile = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      e.target.value = '';
+
+      const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+      if (isPng) {
+        try {
+          const uploaded = await uploadAssetFile(file);
+          const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+          const newNode: Node = {
+            id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'upload',
+            zIndex: getNextLayerZ(nodesRef.current, 'upload'),
+            selected: true,
+            position: { x: center.x - 160, y: center.y - 120 },
+            data: {
+              uploadType: 'image',
+              imageUrl: uploaded.url,
+              fileName: file.name || uploaded.filename,
+              fileSize: file.size,
+              mime: file.type || 'image/png',
+            },
+          };
+          setNodes((prev) => [...prev.map((n) => ({ ...n, selected: false })), newNode]);
+        } catch (err) {
+          alert(`导入 PNG 失败：${err instanceof Error ? err.message : String(err)}`);
+          console.error(err);
+        }
+        return;
+      }
+
+      if (file.type && file.type !== 'application/json' && !/\.json$/i.test(file.name)) {
+        alert('请选择 JSON 画布文件或 PNG 透明底图');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         try {
@@ -951,10 +985,8 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         }
       };
       reader.readAsText(file);
-      // 鍏佽閲嶅閫夊悓涓€鏂囦欢
-      e.target.value = '';
     },
-    []
+    [screenToFlowPosition]
   );
 
   // ===== 搴旂敤妯℃澘 =====
@@ -1515,6 +1547,39 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     ['center', 'AlignCenter', '居中'],
     ['right', 'AlignRight', '右对齐'],
   ] as const;
+  const nodeLabelByType = useMemo(
+    () => new Map(NODE_REGISTRY.map((meta) => [meta.type, meta.label])),
+    []
+  );
+  const layerItems = useMemo(() => {
+    const summarizeNode = (node: Node) => {
+      const data = (node.data || {}) as Record<string, any>;
+      const raw =
+        data.name ||
+        data.label ||
+        data.fileName ||
+        data.prompt ||
+        data.lastPrompt ||
+        data.imageUrl ||
+        data.videoUrl ||
+        data.audioUrl ||
+        '';
+      const text = String(raw).replace(/\s+/g, ' ').trim();
+      return text ? text.slice(0, 28) : node.id.slice(0, 12);
+    };
+    return nodes
+      .filter((node) => {
+        const type = String(node.type || '');
+        return node.id !== BULK_PHANTOM_ID && type !== 'output' && !REMOVED_NODE_TYPES.has(type);
+      })
+      .sort((a, b) => getLayerZ(b, nodes.indexOf(b)) - getLayerZ(a, nodes.indexOf(a)))
+      .map((node) => ({
+        node,
+        typeLabel: nodeLabelByType.get(node.type as NodeType) || String(node.type || '节点'),
+        summary: summarizeNode(node),
+        sortable: isLayerableNode(node),
+      }));
+  }, [nodes, nodeLabelByType]);
 
   const updateSelectedText = useCallback((patch: Record<string, any>) => {
     const ids = selectedTextNodes.length > 0
@@ -1565,6 +1630,15 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     });
   }, []);
 
+  const selectLayerNode = useCallback((id: string) => {
+    setNodes((prev) => prev.map((n) => ({ ...n, selected: n.id === id })));
+    const target = nodesRef.current.find((n) => n.id === id);
+    if (!target) return;
+    const rect = getNodeRect(target, nodesRef.current);
+    const { zoom } = getViewport();
+    setCenter(rect.C, rect.M, { zoom, duration: 320 });
+  }, [getViewport, setCenter]);
+
   // 閫夊尯鍙抽敭(妗嗛€?鈮?1 涓妭鐐瑰悗鍙抽敭)
   const onSelectionContextMenu = useCallback(
     (e: React.MouseEvent, sels: Node[]) => {
@@ -1614,15 +1688,8 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     []
   );
 
-  // 妗嗛€夌粨鏉? 鑻ラ€変腑 鈮?2 涓妭鐐瑰垯鑷姩寮瑰嚭鑿滃崟
-  const onSelectionEnd = useCallback((e: React.MouseEvent) => {
-    const ids = lastSelectedIdsRef.current;
-    if (!ids || ids.length < 2) return;
-    const x = (e as any)?.clientX ?? 0;
-    const y = (e as any)?.clientY ?? 0;
-    if (!x && !y) return;
-    setContextMenu({ x, y, ids });
-  }, []);
+  // 框选结束只保留选中状态；菜单仅由右键触发。
+  const onSelectionEnd = useCallback(() => {}, []);
 
   // 鏆撮湶 addNode 缁欑埗缁勪欢
   useEffect(() => {
@@ -2587,10 +2654,10 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     const edgeStroke = isPixel ? '#1A1410' : isDark ? '#676767' : '#8b8981';
     const dotColor = isPixel
       ? isDark ? '#5C4D3E' : '#C8B89A'
-      : isDark ? '#303030' : '#c7c7c7';
+      : isDark ? '#D6D6D6' : '#c7c7c7';
   const bgColor = isPixel
     ? isDark ? '#1F1A14' : '#FAF3E7'
-    : isDark ? '#3C3C3C' : '#e6e6e6';
+    : isDark ? '#2B2B2B' : '#e6e6e6';
 
   const memoNodeTypes = useMemo(() => nodeTypes, []);
   const memoEdgeTypes = useMemo(() => edgeTypes, []);
@@ -2633,7 +2700,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/json,.json"
+        accept="application/json,.json,image/png,.png"
         className="hidden"
         onChange={handleImportFile}
       />
@@ -2768,7 +2835,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
           </button>
         ) : (
           <div
-            className={`pointer-events-auto w-[196px] rounded-xl border p-2 shadow-2xl backdrop-blur ${
+            className={`pointer-events-auto max-h-[calc(100vh-96px)] w-[240px] overflow-y-auto rounded-xl border p-2 shadow-2xl backdrop-blur ${
               isDark ? 'border-white/16 bg-zinc-950/94 text-white shadow-black/35' : 'border-black/10 bg-white/96 text-zinc-900'
             }`}
           >
@@ -2928,6 +2995,68 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                     );
                   })}
                 </div>
+              </div>
+            </div>
+
+            <div className={`mt-3 border-t pt-2 ${isDark ? 'border-white/10' : 'border-black/10'}`}>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className={isDark ? 'text-[10px] text-white/45' : 'text-[10px] text-zinc-500'}>窗口顺序</span>
+                <span className={isDark ? 'text-[10px] text-white/35' : 'text-[10px] text-zinc-400'}>{layerItems.length}</span>
+              </div>
+              <div className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+                {layerItems.length === 0 && (
+                  <div className={isDark ? 'rounded-md bg-white/5 px-2 py-2 text-[11px] text-white/35' : 'rounded-md bg-black/[0.03] px-2 py-2 text-[11px] text-zinc-400'}>
+                    当前画布没有窗口
+                  </div>
+                )}
+                {layerItems.map(({ node, typeLabel, summary, sortable }) => {
+                  const active = !!node.selected;
+                  const orderButtonClass = `flex h-6 w-6 items-center justify-center rounded transition disabled:cursor-not-allowed disabled:opacity-25 ${
+                    isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-zinc-500 hover:bg-black/5 hover:text-zinc-900'
+                  }`;
+                  return (
+                    <div
+                      key={node.id}
+                      className={`rounded-lg border p-1.5 transition ${
+                        active
+                          ? isDark ? 'border-sky-300/40 bg-sky-400/10' : 'border-sky-500/30 bg-sky-500/10'
+                          : isDark ? 'border-white/8 bg-white/[0.035]' : 'border-black/8 bg-black/[0.025]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 text-left"
+                        onClick={() => selectLayerNode(node.id)}
+                        title={`${typeLabel} · ${node.id}`}
+                      >
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${
+                          isDark ? 'bg-white/8 text-white/70' : 'bg-black/[0.04] text-zinc-600'
+                        }`}>
+                          {typeLabel.slice(0, 1)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate text-[11px] font-medium ${isDark ? 'text-white/78' : 'text-zinc-800'}`}>{typeLabel}</span>
+                          <span className={`block truncate text-[10px] ${isDark ? 'text-white/38' : 'text-zinc-500'}`}>{summary}</span>
+                        </span>
+                        <span className={`shrink-0 text-[9px] ${isDark ? 'text-white/28' : 'text-zinc-400'}`}>{node.id.slice(-4)}</span>
+                      </button>
+                      <div className="mt-1 flex justify-end gap-0.5">
+                        <button type="button" className={orderButtonClass} disabled={!sortable} title="置顶" onClick={() => handleLayerOrder([node.id], 'front')}>
+                          <ChevronsUp size={12} />
+                        </button>
+                        <button type="button" className={orderButtonClass} disabled={!sortable} title="上移" onClick={() => handleLayerOrder([node.id], 'forward')}>
+                          <ArrowUp size={12} />
+                        </button>
+                        <button type="button" className={orderButtonClass} disabled={!sortable} title="下移" onClick={() => handleLayerOrder([node.id], 'backward')}>
+                          <ArrowDown size={12} />
+                        </button>
+                        <button type="button" className={orderButtonClass} disabled={!sortable} title="置底" onClick={() => handleLayerOrder([node.id], 'back')}>
+                          <ChevronsDown size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

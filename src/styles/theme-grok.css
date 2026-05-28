@@ -4,7 +4,7 @@
  */
 
 html[data-theme-style="tech"][data-theme-mode="dark"] {
-  --hz-bg: #3C3C3C;
+  --hz-bg: #2B2B2B;
   --hz-bg-soft: #0e0e0e;
   --hz-surface: rgba(18, 18, 18, 0.92);
   --hz-surface-strong: rgba(27, 27, 27, 0.96);
@@ -16,7 +16,7 @@ html[data-theme-style="tech"][data-theme-mode="dark"] {
   --hz-text-dim: rgba(244, 243, 238, 0.46);
   --hz-accent: #f3efe3;
   --hz-accent-ink: #111111;
-  --hz-line: #676767;
+  --hz-line: #D6D6D6;
   --hz-success: #a9b8ae;
   --hz-warning: #b9af9a;
   --hz-danger: #b7a0a0;
@@ -223,6 +223,10 @@ html[data-theme-style="tech"] .react-flow__background {
 html[data-theme-style="tech"] .react-flow__background-pattern circle {
   fill: var(--hz-line) !important;
   opacity: 0.28;
+}
+
+html[data-theme-style="tech"][data-theme-mode="dark"] .react-flow__background-pattern circle {
+  opacity: 1;
 }
 
 html[data-theme-style="tech"] .react-flow__edge-path {
