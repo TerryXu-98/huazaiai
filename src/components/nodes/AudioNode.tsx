@@ -254,11 +254,18 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
   return (
     <div
       {...dropProps}
-      className={`relative rounded-xl border-2 transition-all w-[320px] ${
-        selected ? 'border-violet-400 shadow-2xl shadow-violet-500/20' : isAccepting ? 'border-emerald-400' : 'border-white/15 hover:border-white/30'
+      className={`huazai-media-menu relative rounded-xl border-2 transition-all w-[320px] ${
+        selected
+          ? 'border-violet-400 shadow-2xl shadow-violet-500/20'
+          : isAccepting
+            ? 'border-emerald-400'
+            : isDark
+              ? 'border-white/15 hover:border-white/30'
+              : 'border-black/10 hover:border-black/20'
       }`}
+      data-theme={isDark ? 'dark' : 'light'}
       style={{
-        background: 'rgba(20,20,22,.92)',
+        background: isDark ? 'rgba(20,20,22,.92)' : 'rgba(255,255,255,.96)',
         backdropFilter: 'blur(8px)',
         boxShadow: isAccepting ? '0 0 0 2px rgba(52,211,153,.45), 0 12px 30px rgba(52,211,153,.18)' : undefined,
       }}

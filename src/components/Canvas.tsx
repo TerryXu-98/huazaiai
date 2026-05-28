@@ -387,6 +387,25 @@ const edgeTypes = {
 
 export type CanvasInteractionMode = 'select' | 'move';
 
+const INSPECTOR_W = 240;
+const INSPECTOR_MARGIN = 16;
+
+const getInitialInspectorPosition = () => {
+  if (typeof window === 'undefined') return { x: 0, y: 96 };
+  return {
+    x: Math.max(INSPECTOR_MARGIN, window.innerWidth - INSPECTOR_W - INSPECTOR_MARGIN),
+    y: Math.max(INSPECTOR_MARGIN, Math.round((window.innerHeight - 560) / 2)),
+  };
+};
+
+const clampInspectorPosition = (pos: { x: number; y: number }) => {
+  if (typeof window === 'undefined') return pos;
+  return {
+    x: Math.min(Math.max(INSPECTOR_MARGIN, pos.x), Math.max(INSPECTOR_MARGIN, window.innerWidth - INSPECTOR_W - INSPECTOR_MARGIN)),
+    y: Math.min(Math.max(INSPECTOR_MARGIN, pos.y), Math.max(INSPECTOR_MARGIN, window.innerHeight - 80)),
+  };
+};
+
 interface CanvasInnerProps {
   onAddNodeRef?: React.MutableRefObject<((type: NodeType) => void) | null>;
   onSaveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
@@ -466,6 +485,52 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     y: number;
   } | null>(null);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorPosition, setInspectorPosition] = useState(getInitialInspectorPosition);
+  const inspectorDragRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const inspectorDragMovedRef = useRef(false);
+
+  useEffect(() => {
+    const onResize = () => setInspectorPosition((pos) => clampInspectorPosition(pos));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const beginInspectorDrag = useCallback((event: React.MouseEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    inspectorDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: inspectorPosition.x,
+      originY: inspectorPosition.y,
+    };
+    inspectorDragMovedRef.current = false;
+    const onMove = (moveEvent: MouseEvent) => {
+      const drag = inspectorDragRef.current;
+      if (!drag) return;
+      if (Math.hypot(moveEvent.clientX - drag.startX, moveEvent.clientY - drag.startY) > 3) {
+        inspectorDragMovedRef.current = true;
+      }
+      setInspectorPosition(clampInspectorPosition({
+        x: drag.originX + moveEvent.clientX - drag.startX,
+        y: drag.originY + moveEvent.clientY - drag.startY,
+      }));
+    };
+    const onUp = () => {
+      inspectorDragRef.current = null;
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+    };
+    document.body.style.cursor = 'move';
+    window.addEventListener('mousemove', onMove, true);
+    window.addEventListener('mouseup', onUp, true);
+  }, [inspectorPosition.x, inspectorPosition.y]);
 
   // 鍘嗗彶鏍?
   const applySnapshot = useCallback((snap: { nodes: Node[]; edges: Edge[] }) => {
@@ -743,6 +808,17 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       if (event.button !== 1) return;
       const target = event.target as HTMLElement | null;
       if (!target?.closest('.react-flow')) return;
+      if (
+        target.closest('.react-flow__node') ||
+        target.closest('.react-flow__handle') ||
+        target.closest('button') ||
+        target.closest('input') ||
+        target.closest('textarea') ||
+        target.closest('select') ||
+        target.closest('[contenteditable="true"]')
+      ) {
+        return;
+      }
       event.preventDefault();
       const startX = event.clientX;
       const startY = event.clientY;
@@ -2819,27 +2895,34 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       <MaterialDragOverlay />
 
       <div
-        className="fixed right-4 top-1/2 z-40 -translate-y-1/2"
-        style={{ pointerEvents: 'none' }}
+        className="fixed z-40"
+        style={{ left: inspectorPosition.x, top: inspectorPosition.y, width: INSPECTOR_W, pointerEvents: 'none' }}
       >
         {inspectorCollapsed ? (
           <button
             type="button"
-            className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border shadow-2xl backdrop-blur ${
+            className={`pointer-events-auto flex h-11 w-11 cursor-move items-center justify-center rounded-full border shadow-2xl backdrop-blur ${
               isDark ? 'border-white/16 bg-zinc-950/94 text-white shadow-black/35 hover:bg-zinc-900' : 'border-black/10 bg-white/95 text-zinc-900 hover:bg-zinc-50'
             }`}
             title="展开属性面板"
-            onClick={() => setInspectorCollapsed(false)}
+            onMouseDown={beginInspectorDrag}
+            onClick={() => {
+              if (inspectorDragMovedRef.current) {
+                inspectorDragMovedRef.current = false;
+                return;
+              }
+              setInspectorCollapsed(false);
+            }}
           >
             <InspectorIcon size={18} />
           </button>
         ) : (
           <div
-            className={`pointer-events-auto max-h-[calc(100vh-96px)] w-[240px] overflow-y-auto rounded-xl border p-2 shadow-2xl backdrop-blur ${
+            className={`pointer-events-auto max-h-[calc(100vh-32px)] w-[240px] overflow-y-auto rounded-xl border p-2 shadow-2xl backdrop-blur ${
               isDark ? 'border-white/16 bg-zinc-950/94 text-white shadow-black/35' : 'border-black/10 bg-white/96 text-zinc-900'
             }`}
           >
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex cursor-move items-center gap-2 rounded-lg px-1 py-1" onMouseDown={beginInspectorDrag} title="拖动属性面板">
               <InspectorIcon size={15} className={isDark ? 'text-white/70' : 'text-zinc-600'} />
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold">属性</div>
@@ -2851,6 +2934,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                 type="button"
                 className={`flex h-7 w-7 items-center justify-center rounded-full ${isDark ? 'hover:bg-white/10 text-white/65' : 'hover:bg-black/5 text-zinc-600'}`}
                 title="最小化"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setInspectorCollapsed(true)}
               >
                 <ChevronsDown size={14} />

@@ -325,7 +325,8 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   if (url && uploadType && meta) {
     return (
       <div
-        className="huazai-image-layer group relative mt-8 overflow-visible rounded-none bg-transparent"
+        className="huazai-image-layer huazai-upload-layer group relative mt-8 overflow-visible rounded-none bg-transparent"
+        data-theme={isDark ? 'dark' : 'light'}
         style={{ width: size.w, height: size.h }}
       >
         <input
@@ -351,12 +352,12 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
         <div className={`pointer-events-none absolute -top-8 left-0 right-0 z-30 flex items-center justify-between gap-2 transition-opacity ${
           selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         }`}>
-          <div className={`max-w-[170px] truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
+          <div className={`min-w-0 flex-1 truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
             isDark ? 'border-white/10 bg-zinc-950/88 text-white/70' : 'border-black/10 bg-white/92 text-zinc-600'
           }`}>
             {fileSize > 0 ? `${mediaInfo} / ${(fileSize / 1024).toFixed(1)} KB` : mediaInfo}
           </div>
-          <div className="pointer-events-auto flex items-center gap-1">
+          <div className="pointer-events-auto flex shrink-0 items-center gap-1">
             {uploadType === 'image' && (
               <button type="button" className={mediaActionClass} title="Edit" onMouseDown={(e) => e.stopPropagation()} onClick={openEdit}>
                 <Edit3 size={13} />
@@ -443,7 +444,8 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   if (layerOnly && uploadType && meta) {
     return (
       <div
-        className="huazai-image-layer relative bg-transparent"
+        className="huazai-image-layer huazai-upload-layer relative bg-transparent"
+        data-theme={isDark ? 'dark' : 'light'}
         style={{ width: size.w, height: size.h }}
       >
         <Handle
@@ -512,11 +514,13 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className="group relative mt-8 rounded-none border-2 transition-colors flex flex-col"
+      className="huazai-node-ui group relative mt-8 rounded-none border-2 transition-colors flex flex-col"
+      data-theme={isDark ? 'dark' : 'light'}
       style={{
-        background: isDark ? 'rgba(20,20,22,.92)' : 'rgba(255,255,255,.96)',
+        background: 'var(--hz-node-bg)',
         backdropFilter: 'blur(8px)',
-        borderColor: selected ? handleColor : 'transparent',
+        borderColor: selected ? handleColor : 'var(--hz-node-border)',
+        boxShadow: selected ? `0 0 0 1px ${handleColor}33, var(--hz-node-shadow)` : 'var(--hz-node-shadow)',
         width: size.w,
         height: size.h, // undefined → auto, 上传后被图/视频自然撑高; 拖角后具体 px
         minWidth: 220,
@@ -526,12 +530,12 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
       {/* 四角同比例缩放 (仅选中时出现) — 主题色跟随上传类型的端口色 */}
       {selected && url && uploadType && meta && (
         <div className="pointer-events-none absolute -top-8 left-0 right-0 z-30 flex items-center justify-between gap-2">
-          <div className={`max-w-[150px] truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
+          <div className={`min-w-0 flex-1 truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
             isDark ? 'border-white/10 bg-zinc-950/88 text-white/70' : 'border-black/10 bg-white/92 text-zinc-600'
           }`}>
             {fileSize > 0 ? `${mediaInfo} · ${(fileSize / 1024).toFixed(1)} KB` : mediaInfo}
           </div>
-          <div className="pointer-events-auto flex items-center gap-1">
+          <div className="pointer-events-auto flex shrink-0 items-center gap-1">
             {uploadType === 'image' && (
               <button type="button" className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${isDark ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900' : 'border-black/10 bg-white/92 text-zinc-700 hover:bg-white'}`} title="编辑" onMouseDown={(e) => e.stopPropagation()} onClick={openEdit}>
                 <Edit3 size={13} />
@@ -550,7 +554,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
         </div>
       )}
       <ResizableCorners
-        selected={selected}
+        selected={selected && !!url}
         minWidth={220}
         minHeight={180}
         accent={handleColor}

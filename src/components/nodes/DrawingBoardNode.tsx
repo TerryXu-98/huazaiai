@@ -2,6 +2,7 @@ import { memo, useState, type CSSProperties } from 'react';
 import { Handle, NodeResizeControl, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
 import { Frame } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
+import { useThemeStore } from '../../stores/theme';
 
 const COLOR = '#d7ccb3';
 const MIN_W = 280;
@@ -10,6 +11,10 @@ const RESIZE_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'
 
 const DrawingBoardNode = (p: NodeProps) => {
   const update = useUpdateNodeData(p.id);
+  const { theme, style } = useThemeStore();
+  const handleThemeClass = style === 'pixel'
+    ? `huazai-frame-resize-handle--pixel-${theme === 'dark' ? 'dark' : 'light'}`
+    : `huazai-frame-resize-handle--tech-${theme === 'dark' ? 'dark' : 'light'}`;
   const d = p.data as any;
   const frameName = String(d?.name || '画框');
   const [editingName, setEditingName] = useState(false);
@@ -104,7 +109,7 @@ const DrawingBoardNode = (p: NodeProps) => {
             minWidth={MIN_W}
             minHeight={MIN_H}
             onResize={handleResize}
-            className={`huazai-resize-handle huazai-resize-handle--tech huazai-resize-handle--tech-dark huazai-resize-handle--${position}`}
+            className={`huazai-frame-resize-handle huazai-frame-resize-handle--${position} ${handleThemeClass}`}
             style={{ ['--huazai-resize-accent' as any]: COLOR } as CSSProperties}
           />
         ))}

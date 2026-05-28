@@ -108,6 +108,46 @@ body,
   will-change: transform;
 }
 
+.huazai-node-ui {
+  --hz-node-bg: rgba(255, 255, 255, 0.96);
+  --hz-node-border: rgba(24, 24, 27, 0.1);
+  --hz-node-text: #18181b;
+  --hz-node-muted: rgba(63, 63, 70, 0.68);
+  --hz-node-control-bg: rgba(24, 24, 27, 0.04);
+  --hz-node-control-border: rgba(24, 24, 27, 0.12);
+  --hz-node-shadow: 0 10px 30px rgba(24, 24, 27, 0.08);
+}
+
+.huazai-node-ui[data-theme="dark"] {
+  --hz-node-bg: rgba(20, 20, 22, 0.92);
+  --hz-node-border: rgba(255, 255, 255, 0.12);
+  --hz-node-text: #f8fafc;
+  --hz-node-muted: rgba(248, 250, 252, 0.58);
+  --hz-node-control-bg: rgba(255, 255, 255, 0.06);
+  --hz-node-control-border: rgba(255, 255, 255, 0.12);
+  --hz-node-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.huazai-upload-layer {
+  --hz-upload-edge: rgba(24, 24, 27, 0.18);
+  --hz-upload-bg: rgba(255, 255, 255, 0.36);
+  outline: 1px solid var(--hz-upload-edge) !important;
+  outline-offset: 0;
+  background: var(--hz-upload-bg) !important;
+  box-shadow: 0 10px 24px rgba(24, 24, 27, 0.1) !important;
+}
+
+.huazai-upload-layer[data-theme="dark"] {
+  --hz-upload-edge: rgba(255, 255, 255, 0.18);
+  --hz-upload-bg: rgba(9, 9, 11, 0.28);
+}
+
+.huazai-upload-layer img,
+.huazai-upload-layer video {
+  outline: 1px solid var(--hz-upload-edge) !important;
+  outline-offset: -1px;
+}
+
 .react-flow__node-image:not(.selected),
 .react-flow__node-edit:not(.selected) {
   border: 0 !important;
@@ -231,6 +271,38 @@ body,
 .huazai-media-menu[data-theme="light"] input::placeholder,
 .huazai-media-menu[data-theme="light"] textarea::placeholder {
   color: rgba(63, 63, 70, 0.45) !important;
+}
+
+.huazai-media-menu[data-theme="light"] .border-white\/10,
+.huazai-media-menu[data-theme="light"] .border-white\/15,
+.huazai-media-menu[data-theme="light"] .border-white\/20 {
+  border-color: rgba(24, 24, 27, 0.12) !important;
+}
+
+.huazai-media-menu[data-theme="light"] .bg-white\/5,
+.huazai-media-menu[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(24, 24, 27, 0.04) !important;
+}
+
+.huazai-media-menu[data-theme="light"] .text-zinc-200,
+.huazai-media-menu[data-theme="light"] .text-zinc-300,
+.huazai-media-menu[data-theme="light"] .text-rose-200,
+.huazai-media-menu[data-theme="light"] .text-violet-200,
+.huazai-media-menu[data-theme="light"] .text-emerald-200 {
+  color: #3f3f46 !important;
+}
+
+.huazai-media-menu[data-theme="light"] .text-rose-300 {
+  color: #be123c !important;
+}
+
+.huazai-media-menu[data-theme="light"] .text-violet-300 {
+  color: #7c3aed !important;
+}
+
+.huazai-media-menu[data-theme="light"] .text-emerald-200,
+.huazai-media-menu[data-theme="light"] .text-emerald-300 {
+  color: #047857 !important;
 }
 
 /* 隐藏滚动条 */
@@ -545,4 +617,71 @@ body.cut-mode .react-flow__edge .react-flow__edge-interaction {
 }
 .huazai-resize-handle--pixel-dark.huazai-resize-handle--bottom-left:hover {
   box-shadow: -3px 3px 0 var(--px-ink, #F5EBD7);
+}
+
+/* Drawing-board resize affordance: light corner marks instead of square blocks. */
+.react-flow__resize-control.handle.huazai-frame-resize-handle {
+  width: 22px !important;
+  height: 22px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  opacity: 0.72;
+  z-index: 24;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.react-flow__resize-control.handle.huazai-frame-resize-handle::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.react-flow__resize-control.handle.huazai-frame-resize-handle::after {
+  content: '';
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-color: var(--huazai-frame-handle-color, #d7ccb3);
+  opacity: 0.95;
+}
+
+.react-flow__resize-control.handle.huazai-frame-resize-handle:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.huazai-frame-resize-handle--tech-light,
+.huazai-frame-resize-handle--tech-dark,
+.huazai-frame-resize-handle--pixel-light,
+.huazai-frame-resize-handle--pixel-dark {
+  --huazai-frame-handle-color: var(--huazai-resize-accent, #d7ccb3);
+}
+
+.huazai-frame-resize-handle--top-left::after {
+  left: 4px;
+  top: 4px;
+  border-left: 2px solid;
+  border-top: 2px solid;
+}
+
+.huazai-frame-resize-handle--top-right::after {
+  right: 4px;
+  top: 4px;
+  border-right: 2px solid;
+  border-top: 2px solid;
+}
+
+.huazai-frame-resize-handle--bottom-left::after {
+  left: 4px;
+  bottom: 4px;
+  border-left: 2px solid;
+  border-bottom: 2px solid;
+}
+
+.huazai-frame-resize-handle--bottom-right::after {
+  right: 4px;
+  bottom: 4px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
 }
