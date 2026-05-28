@@ -50,7 +50,7 @@ export default defineConfig({
     },
   },
   define: {
-    __APP_VERSION__: JSON.stringify('3.0.6'),
+    __APP_VERSION__: JSON.stringify('3.0.7'),
     __APP_NAME__: JSON.stringify('花再DESIGN'),
   },
 });
