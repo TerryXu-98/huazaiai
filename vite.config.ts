@@ -2,10 +2,25 @@
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// 鑺卞啀DESIGN Vite 閰嶇疆
-// 绔彛绛栫暐:鍓嶇 11422 / 鍚庣 18766(閬垮紑涓婚」鐩?5176/18765 涓庡父瑙?51xx 鍗犵敤)
+const canvasZoomRangePlugin = () => ({
+  name: 'huazai-canvas-zoom-range',
+  enforce: 'pre' as const,
+  transform(code: string, id: string) {
+    const normalized = id.replace(/\\/g, '/');
+    if (!normalized.endsWith('/src/components/Canvas.tsx')) return null;
+    const marker = 'defaultEdgeOptions={memoDefaultEdgeOptions}';
+    if (!code.includes(marker) || code.includes('minZoom={0.01}')) return null;
+    return code.replace(
+      marker,
+      `${marker}\n        minZoom={0.01}\n        maxZoom={4}\n        zoomOnScroll\n        zoomOnPinch`
+    );
+  },
+});
+
+// 花再DESIGN Vite 配置
+// 端口策略:前端 11422 / 后端 18766(避开主项目 5176/18765 与常见 51xx 占用)
 export default defineConfig({
-  plugins: [react()],
+  plugins: [canvasZoomRangePlugin(), react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -16,12 +31,12 @@ export default defineConfig({
     strictPort: true,
     host: '127.0.0.1',
     proxy: {
-      // 鍚庣 API 浠ｇ悊
+      // 后端 API 代理
       '/api': {
         target: 'http://127.0.0.1:18766',
         changeOrigin: true,
       },
-      // 闈欐€佹枃浠舵湇鍔′唬鐞?
+      // 静态文件服务代理
       '/files': {
         target: 'http://127.0.0.1:18766',
         changeOrigin: true,
@@ -54,4 +69,3 @@ export default defineConfig({
     __APP_NAME__: JSON.stringify('花再DESIGN'),
   },
 });
-
