@@ -49,12 +49,15 @@ app.get('/api/status', (_req, res) => {
 // ========== 业务路由 ==========
 const canvasRouter = require('./routes/canvas');
 const settingsRouter = require('./routes/settings');
+const gptImageGenerationsRouter = require('./routes/gptImageGenerations');
 const proxyRouter = require('./routes/proxy');
 const filesRouter = require('./routes/files');
 const imageOpsRouter = require('./routes/imageOps');
 
 app.use('/api/canvas', canvasRouter);
 app.use('/api/settings', settingsRouter);
+// 必须挂在 proxyRouter 前面：仅拦截 GPT Image 2 标准路径的无参考图文生图，改走 /generations?async=true。
+app.use('/api/proxy', gptImageGenerationsRouter);
 app.use('/api/proxy', proxyRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/image', imageOpsRouter);
