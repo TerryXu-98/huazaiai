@@ -8,20 +8,23 @@ const COLOR = '#d7ccb3';
 const MIN_W = 280;
 const MIN_H = 180;
 // 真实分辨率图像会按 naturalWidth/naturalHeight 显示，默认画框需要给 2K/4K 图像留足编排空间。
-// 1200×800 的上一版默认画框再放大 10 倍，面积约为原来的 100 倍。
-const DEFAULT_W = 12000;
-const DEFAULT_H = 8000;
+// 在上一版 12000×8000 基础上再扩大 2 倍。
+const DEFAULT_W = 24000;
+const DEFAULT_H = 16000;
 const LEGACY_DEFAULT_W = 840;
 const LEGACY_DEFAULT_H = 560;
 const PREVIOUS_DEFAULT_W = 1200;
 const PREVIOUS_DEFAULT_H = 800;
+const LARGE_DEFAULT_W = 12000;
+const LARGE_DEFAULT_H = 8000;
 const RESIZE_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
 
 const shouldUpgradeDefaultFrame = (w: number, h: number) =>
   !w ||
   !h ||
   (w === LEGACY_DEFAULT_W && h === LEGACY_DEFAULT_H) ||
-  (w === PREVIOUS_DEFAULT_W && h === PREVIOUS_DEFAULT_H);
+  (w === PREVIOUS_DEFAULT_W && h === PREVIOUS_DEFAULT_H) ||
+  (w === LARGE_DEFAULT_W && h === LARGE_DEFAULT_H);
 
 const DrawingBoardNode = (p: NodeProps) => {
   const update = useUpdateNodeData(p.id);
