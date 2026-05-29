@@ -110,6 +110,8 @@ export interface FalSubmitRequest {
   customH?: number;
   /** 'low' | 'medium' | 'high' | 'auto' 主项目默认 medium */
   quality?: 'low' | 'medium' | 'high' | 'auto';
+  /** GPT FAL uses this with aspect_ratio to derive a custom image_size object. */
+  resolutionLevel?: string;
 
   // === nbpro-fal 专属 ===
   /** 'auto' / '21:9' / '16:9' / '3:2' / '4:3' / '5:4' / '1:1' / '4:5' / '3:4' / '2:3' / '9:16' */

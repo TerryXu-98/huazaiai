@@ -98,6 +98,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
 
   // ========== MJ 渠道识别及参数(完全对齐 gpt-image-2-web mj_* 控件 L1552~L1580) ==========
   const isMj = modelDef.paramKind === 'mj';
+  const showGptSizeControls = !isMj && (!isFal || falKind === 'gpt-fal');
   const mjVersion: string = d?.mjVersion || DEFAULT_MJ_VERSION;
   const mjAr: string = d?.mjAr || DEFAULT_MJ_RATIO;
   const mjSpeed: MjSpeed = (d?.mjSpeed as MjSpeed) || DEFAULT_MJ_SPEED;
@@ -123,7 +124,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const handleVisibilityClass = selected ? '!opacity-100' : '!opacity-0 !pointer-events-none';
   const mediaInfo = isFal
     ? (falKind === 'gpt-fal'
-      ? (falSize === 'custom' ? `${falCustomW}x${falCustomH}` : falSize)
+      ? `${aspectRatio} · ${sizeLevel}`
       : `${nbAspect}/${nbResolution}`)
     : isMj
       ? `${mjAr} · ${mjVersion}`
@@ -364,7 +365,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       // ============ FAL 路径(对齐 gpt-image-2-web runGPTFal / runNanoFal) ============
       if (isFal && falDef) {
         const sizeDesc = falKind === 'gpt-fal'
-          ? (falSize === 'custom' ? `${falCustomW}×${falCustomH}` : falSize)
+          ? `${aspectRatio}/${sizeLevel}${falSize === 'custom' ? ` custom ${falCustomW}x${falCustomH}` : ''}`
           : `${nbAspect}/${nbResolution}`;
         logBus.info(
           `FAL提交: model=${apiModel} kind=${falKind} size=${sizeDesc} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
@@ -379,12 +380,13 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           sync: falSync,
           // gpt-fal
           mode: falKind === 'gpt-fal' ? falMode : undefined,
-          size: falKind === 'gpt-fal' ? falSize : undefined,
+          size: falKind === 'gpt-fal' ? (falSize === 'custom' ? 'custom' : 'auto') : undefined,
           customW: falKind === 'gpt-fal' && falSize === 'custom' ? falCustomW : undefined,
           customH: falKind === 'gpt-fal' && falSize === 'custom' ? falCustomH : undefined,
           quality: falKind === 'gpt-fal' ? falQuality : undefined,
+          aspect_ratio: falKind === 'gpt-fal' ? aspectRatio : (falKind === 'nbpro-fal' ? nbAspect : undefined),
+          resolutionLevel: falKind === 'gpt-fal' ? sizeLevel : undefined,
           // nbpro-fal
-          aspect_ratio: falKind === 'nbpro-fal' ? nbAspect : undefined,
           resolution: falKind === 'nbpro-fal' ? nbResolution : undefined,
           safety_tolerance: falKind === 'nbpro-fal' ? nbSafety : undefined,
           seed: falKind === 'nbpro-fal' && nbSeed > 0 ? nbSeed : undefined,
@@ -765,7 +767,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 模型) */}
-        {!isFal && !isMj && (
+        {showGptSizeControls && (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-white/50 block mb-1">比例</label>
@@ -816,14 +818,14 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-white/50 block mb-1">Size</label>
+                <label className="text-[10px] text-white/50 block mb-1">Size Override</label>
                 <select
                   value={falSize}
                   onChange={(e) => update({ falSize: e.target.value })}
                   style={{ background: '#18181b', color: '#ffffff' }}
                   className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
                 >
-                  {GPT_FAL_SIZES.map((s) => (
+                  {GPT_FAL_SIZES.filter((s) => s.value === 'auto' || s.value === 'custom').map((s) => (
                     <option key={s.value} value={s.value} style={{ background: '#18181b', color: '#ffffff' }}>{s.label}</option>
                   ))}
                 </select>

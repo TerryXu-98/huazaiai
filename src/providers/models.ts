@@ -53,6 +53,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     apiModelOptions: [
       { value: 'gpt-image-2-all', label: 'gpt-image-2-all' },
       { value: 'gpt-image-2', label: 'gpt-image-2' },
+      { value: 'gpt-image-2-all-fal', label: 'gpt-image-2-all-fal' },
       { value: 'gpt-image-2-fal', label: 'gpt-image-2-fal' },
     ],
     aspectRatios: GPT_RATIOS,
@@ -205,6 +206,12 @@ export interface FalEndpointDef {
 /** 按 apiModel(如 'gpt-image-2-fal' / 'nano-banana-pro-fal' / 'nano-banana-2-fal')索引 */
 export const FAL_REGISTRY: Record<string, FalEndpointDef> = {
   'gpt-image-2-fal': {
+    endpoint: 'openai/gpt-image-2',
+    editEndpoint: 'openai/gpt-image-2/edit',
+    paramKind: 'gpt-fal',
+    maxRefs: 5,
+  },
+  'gpt-image-2-all-fal': {
     endpoint: 'openai/gpt-image-2',
     editEndpoint: 'openai/gpt-image-2/edit',
     paramKind: 'gpt-fal',

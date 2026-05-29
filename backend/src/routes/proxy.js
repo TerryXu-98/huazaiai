@@ -154,6 +154,12 @@ function aspectToGptSize(aspectRatio, sizeLevel) {
   return GPT_SIZE_MAP[key] || '1024x1024';
 }
 
+function aspectToRequiredGptSize(aspectRatio, sizeLevel) {
+  const ar = String(aspectRatio || '').trim();
+  const safeAr = (!ar || ar === 'Auto' || ar === 'AUTO' || ar === 'empty') ? '1:1' : ar;
+  return aspectToGptSize(safeAr, sizeLevel);
+}
+
 function resolveStandardImageModel(model, sizeLevel) {
   const m = String(model || '');
   const lvl = String(sizeLevel || '').toUpperCase();
@@ -268,7 +274,7 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
   // ===== GPT2 总走 multipart /edits?async=true(文生图加白图占位) =====
   if (paramKind === 'gpt-size') {
     const form = new FormData();
-    const px = size || (lvlLower === '1k' ? aspectToGptSize(ar, lvlLower) : 'auto');
+    const px = size || aspectToRequiredGptSize(ar, lvlLower);
     form.append('prompt', prompt);
     form.append('model', resolvedApiModel);
     form.append('n', String(n || 1));
@@ -554,6 +560,12 @@ const FAL_REGISTRY = {
     paramKind: 'gpt-fal',
     maxRefs: 5,
   },
+  'gpt-image-2-all-fal': {
+    endpoint: 'openai/gpt-image-2',
+    editEndpoint: 'openai/gpt-image-2/edit',
+    paramKind: 'gpt-fal',
+    maxRefs: 5,
+  },
   'nano-banana-pro-fal': {
     endpoint: 'fal-ai/nano-banana-pro/edit',
     editEndpoint: 'fal-ai/nano-banana-pro/edit',
@@ -575,6 +587,17 @@ function snap16(v, fallback) {
   const n = parseInt(v, 10);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return Math.max(256, Math.min(3840, Math.round(n / 16) * 16));
+}
+
+function resolveFalGptImageSize({ size, customW, customH, aspectRatio, resolution }) {
+  const sz = String(size || 'auto');
+  if (sz === 'custom') {
+    return { width: snap16(customW, 1280), height: snap16(customH, 1280) };
+  }
+  if (sz && sz !== 'auto') return sz;
+  const px = aspectToRequiredGptSize(aspectRatio, resolution || '1K');
+  const parsed = parsePixelSize(px);
+  return parsed ? { width: snap16(parsed.width, parsed.width), height: snap16(parsed.height, parsed.height) } : undefined;
 }
 
 // 修复 response_url 域名(主项目 line 2954)
@@ -601,7 +624,7 @@ router.post('/image/fal/submit', async (req, res) => {
   const {
     apiModel, prompt, images, n, format, sync,
     // gpt-fal
-    mode, size, customW, customH, quality,
+    mode, size, customW, customH, quality, resolutionLevel,
     // nbpro-fal
     aspect_ratio, resolution, safety_tolerance, seed,
     system_prompt, enable_web_search, image_mode,
@@ -629,14 +652,13 @@ router.post('/image/fal/submit', async (req, res) => {
       // 选 endpoint: edit 或 gen
       const useEdit = (mode === 'edit') || (mode !== 'gen' && trimmedRefs.length > 0);
       endpoint = useEdit ? (reg.editEndpoint || reg.endpoint) : reg.endpoint;
-      // image_size
-      let imageSize;
-      const sz = String(size || 'auto');
-      if (sz === 'custom') {
-        imageSize = { width: snap16(customW, 1280), height: snap16(customH, 1280) };
-      } else if (sz && sz !== 'auto') {
-        imageSize = sz; // 预设字串 square_hd / portrait_16_9 等,或像素串
-      }
+      const imageSize = resolveFalGptImageSize({
+        size,
+        customW,
+        customH,
+        aspectRatio: aspect_ratio,
+        resolution: resolutionLevel || resolution,
+      });
       payload = {
         prompt,
         quality: String(quality || 'medium'),
