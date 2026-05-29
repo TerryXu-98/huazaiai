@@ -22,6 +22,14 @@ const GPT_SIZE_MAP = {
   '9:21_1k': '624x1456', '9:21_2k': '1296x3024', '9:21_4k': '1584x3696',
 };
 
+const highResTaskMap = new Map();
+
+function rememberHighResTask(taskId, meta) {
+  if (!taskId) return;
+  highResTaskMap.set(String(taskId), meta);
+  setTimeout(() => highResTaskMap.delete(String(taskId)), 60 * 60 * 1000);
+}
+
 function loadRawSettings() {
   if (!fs.existsSync(config.SETTINGS_FILE)) return null;
   try {
@@ -48,6 +56,15 @@ function aspectToGptSize(aspectRatio, sizeLevel) {
   return GPT_SIZE_MAP[`${safeAr}_${lvl}`] || '1024x1024';
 }
 
+function parsePixelSize(size) {
+  const m = String(size || '').trim().match(/^(\d{2,5})x(\d{2,5})$/i);
+  if (!m) return null;
+  const width = Number(m[1]);
+  const height = Number(m[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
 async function readImageDimensions(buf) {
   try {
     const meta = await sharp(buf).metadata();
@@ -70,7 +87,7 @@ async function saveRemoteImageInfo(url) {
     const dims = await readImageDimensions(buf);
     return { url: `/files/output/${filename}`, ...dims };
   } catch (e) {
-    console.error('⚠ GPT2 generations 转存图像失败:', e.message);
+    console.error('⚠ GPT2 high-res 转存图像失败:', e.message);
     return { url };
   }
 }
@@ -83,7 +100,7 @@ async function saveBase64ImageInfo(b64) {
     const dims = await readImageDimensions(buf);
     return { url: `/files/output/${filename}`, ...dims };
   } catch (e) {
-    console.error('⚠ GPT2 generations 解析 b64 失败:', e.message);
+    console.error('⚠ GPT2 high-res 解析 b64 失败:', e.message);
     return null;
   }
 }
@@ -102,8 +119,75 @@ function shouldHandle(reqBody) {
 
 function normalizeSubmitResponse(data) {
   const items = Array.isArray(data?.data) ? data.data : [];
-  const taskId = typeof data?.data === 'string' ? data.data : (data?.task_id || data?.data?.task_id || data?.id);
+  const taskId = typeof data?.data === 'string' ? data.data : (data?.task_id || data?.data?.task_id || data?.id || data?.request_id);
   return { items, taskId };
+}
+
+function normalizeImagesFromFal(data) {
+  if (Array.isArray(data?.images)) return data.images;
+  if (Array.isArray(data?.data?.images)) return data.data.images;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+async function submitFalHighRes({ apiKey, prompt, finalApiModel, n, quality, outputFormat, aspectRatio, lvlUpper, lvlLower, px }) {
+  const imageSize = parsePixelSize(px) || { width: 2048, height: 2048 };
+  const isAuto = !aspectRatio || aspectRatio === 'Auto' || aspectRatio === 'AUTO' || aspectRatio === 'empty';
+  const payload = {
+    prompt,
+    model: finalApiModel,
+    quality: quality || 'auto',
+    num_images: Math.max(1, Math.min(4, parseInt(n ?? 1, 10) || 1)),
+    output_format: outputFormat || 'png',
+    image_size: imageSize,
+    size: px,
+    aspect_ratio: isAuto ? '1:1' : aspectRatio,
+    aspectRatio: isAuto ? '' : aspectRatio,
+    resolution: lvlLower,
+    resolutionLevel: lvlUpper,
+    resolution_level: lvlUpper,
+    image_size_label: lvlUpper,
+  };
+  const endpoint = 'openai/gpt-image-2';
+  const url = `${config.ZHENZHEN_BASE_URL}/fal/${endpoint}`;
+  console.log('[gpt2/highres-fal] →', endpoint, 'model:', finalApiModel, 'size:', px, 'resolution:', lvlUpper, 'payload.image_size:', imageSize.width + 'x' + imageSize.height);
+  const upstream = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(payload),
+  });
+  const text = await upstream.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+  return { upstream, data, endpoint, payload };
+}
+
+async function submitGenerations({ apiKey, prompt, finalApiModel, n, aspectRatio, lvlUpper, lvlLower, px, quality }) {
+  const isAuto = !aspectRatio || aspectRatio === 'Auto' || aspectRatio === 'AUTO' || aspectRatio === 'empty';
+  const body = {
+    prompt,
+    model: finalApiModel,
+    n: Math.max(1, Math.min(4, parseInt(n ?? 1, 10) || 1)),
+    quality: quality || 'auto',
+    moderation: 'auto',
+    size: px,
+    image_size: lvlUpper,
+    aspect_ratio: isAuto ? '1:1' : aspectRatio,
+    aspectRatio: isAuto ? '' : aspectRatio,
+    resolution: lvlLower,
+    resolution_label: lvlUpper,
+  };
+  const url = `${config.ZHENZHEN_BASE_URL}/v1/images/generations?async=true`;
+  console.log('[gpt2/generations] → /generations?async=true', 'model:', finalApiModel, 'size:', px, 'resolution:', lvlLower, 'aspectRatio:', aspectRatio || '1:1');
+  const upstream = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  });
+  const text = await upstream.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+  return { upstream, data, payload: body };
 }
 
 router.post('/image/submit', async (req, res, next) => {
@@ -119,42 +203,22 @@ router.post('/image/submit', async (req, res, next) => {
 
   const finalApiModel = apiModel || model;
   const ar = String(aspect_ratio || '').trim();
-  const isAuto = !ar || ar === 'Auto' || ar === 'AUTO' || ar === 'empty';
   const lvlUpper = String(image_size || '2K').toUpperCase();
   const lvlLower = lvlUpper.toLowerCase();
   const px = size || aspectToGptSize(ar, lvlUpper);
   const apiKey = pickApiKey(settings, finalApiModel);
-
-  const body = {
-    prompt,
-    model: finalApiModel,
-    n: Math.max(1, Math.min(4, parseInt(n ?? 1, 10) || 1)),
-    quality: quality || 'auto',
-    moderation: 'auto',
-    size: px,
-    image_size: lvlUpper,
-    aspect_ratio: isAuto ? '1:1' : ar,
-    aspectRatio: isAuto ? '' : ar,
-    resolution: lvlLower,
-    resolution_label: lvlUpper,
-  };
+  const useFalHighRes = lvlUpper === '2K' || lvlUpper === '4K';
 
   try {
-    const url = `${config.ZHENZHEN_BASE_URL}/v1/images/generations?async=true`;
-    console.log('[gpt2/generations] → /generations?async=true', 'model:', finalApiModel, 'size:', px, 'resolution:', lvlLower, 'aspectRatio:', ar || '1:1');
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-    });
-    const text = await upstream.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    const result = useFalHighRes
+      ? await submitFalHighRes({ apiKey, prompt, finalApiModel, n, quality, outputFormat: 'png', aspectRatio: ar, lvlUpper, lvlLower, px })
+      : await submitGenerations({ apiKey, prompt, finalApiModel, n, aspectRatio: ar, lvlUpper, lvlLower, px, quality });
 
+    const { upstream, data } = result;
     if (!upstream.ok) {
       return res.status(upstream.status).json({
         success: false,
-        error: data?.error?.message || data?.message || `上游 HTTP ${upstream.status}`,
+        error: data?.error?.message || data?.error || data?.detail || data?.message || `上游 HTTP ${upstream.status}`,
         raw: data,
       });
     }
@@ -171,17 +235,76 @@ router.post('/image/submit', async (req, res, next) => {
           if (info?.url) images.push(info);
         }
       }
-      return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: images.map((it) => it.url), images, raw: data } });
+      return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: images.map((it) => it.url), images, raw: data, requestedSize: px, requestedResolution: lvlUpper } });
     }
 
     if (norm.taskId) {
-      return res.json({ success: true, data: { sync: false, taskId: norm.taskId, status: 'pending', progress: '0%', raw: data } });
+      if (useFalHighRes) {
+        const responseUrl = data?.response_url || `${config.ZHENZHEN_BASE_URL}/fal/${result.endpoint}/requests/${norm.taskId}`;
+        rememberHighResTask(norm.taskId, {
+          apiKey,
+          endpoint: result.endpoint,
+          responseUrl: String(responseUrl).replace('https://queue.fal.run', `${config.ZHENZHEN_BASE_URL}/fal`),
+          requestedSize: px,
+          requestedResolution: lvlUpper,
+          payload: result.payload,
+        });
+      }
+      return res.json({ success: true, data: { sync: false, taskId: norm.taskId, status: 'pending', progress: '0%', raw: data, requestedSize: px, requestedResolution: lvlUpper } });
     }
 
-    return res.status(500).json({ success: false, error: 'GPT2 generations 未获取到 task_id 且无同步图片: ' + JSON.stringify(data).slice(0, 300), raw: data });
+    return res.status(500).json({ success: false, error: 'GPT2 high-res 未获取到 task_id 且无同步图片: ' + JSON.stringify(data).slice(0, 300), raw: data, requestedSize: px, requestedResolution: lvlUpper });
   } catch (e) {
-    console.error('gpt2/generations submit 错误:', e);
+    console.error('gpt2 high-res submit 错误:', e);
     return res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+router.get('/image/status/:tid', async (req, res, next) => {
+  const meta = highResTaskMap.get(String(req.params.tid));
+  if (!meta) return next();
+
+  try {
+    const responseUrl = meta.responseUrl || `${config.ZHENZHEN_BASE_URL}/fal/${meta.endpoint}/requests/${req.params.tid}`;
+    const upstream = await fetch(responseUrl, { headers: { Authorization: `Bearer ${meta.apiKey}` } });
+    const text = await upstream.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+
+    if (!upstream.ok) {
+      const status = String(data?.status || '').toUpperCase();
+      if (status === 'IN_QUEUE' || status === 'IN_PROGRESS') {
+        return res.json({ success: true, data: { status: 'pending', progress: status === 'IN_PROGRESS' ? '50%' : '10%', falStatus: status, raw: data } });
+      }
+      return res.status(upstream.status).json({ success: false, error: data?.error || data?.detail || `FAL Poll HTTP ${upstream.status}`, raw: data });
+    }
+
+    const falStatus = String(data?.status || '').toUpperCase();
+    const imageItems = normalizeImagesFromFal(data);
+    if (imageItems.length) {
+      const images = [];
+      for (const it of imageItems) {
+        if (it?.b64_json) {
+          const info = await saveBase64ImageInfo(it.b64_json);
+          if (info?.url) images.push(info);
+        } else if (it?.url) {
+          const info = await saveRemoteImageInfo(it.url);
+          if (info?.url) images.push(info);
+        }
+      }
+      highResTaskMap.delete(String(req.params.tid));
+      return res.json({ success: true, data: { status: 'completed', progress: '100%', urls: images.map((it) => it.url), images, raw: data, requestedSize: meta.requestedSize, requestedResolution: meta.requestedResolution } });
+    }
+
+    if (falStatus === 'FAILED' || falStatus === 'CANCELLED') {
+      highResTaskMap.delete(String(req.params.tid));
+      return res.json({ success: false, data: { status: 'failed', progress: '0%', error: data?.error || data?.detail || `FAL ${falStatus}`, raw: data } });
+    }
+
+    return res.json({ success: true, data: { status: 'pending', progress: falStatus === 'IN_PROGRESS' ? '50%' : '10%', falStatus: falStatus || 'IN_QUEUE', raw: data } });
+  } catch (e) {
+    console.error('gpt2 high-res status 错误:', e);
+    return res.status(500).json({ success: false, error: e.message || '查询失败' });
   }
 });
 
