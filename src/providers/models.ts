@@ -51,18 +51,19 @@ const BANANA_PRO_RATIOS = ['Auto', '1:1', '16:9', '4:3', '4:5', '3:2', '2:3', '3
 export const IMAGE_MODELS: ImageModelDef[] = [
   {
     id: 'gpt-image-2',
-    // 默认走 FAL 路径：该路径显式传 resolutionLevel + image_size 对象，避免标准 multipart 路径被上游吞成 1K。
-    apiModel: 'gpt-image-2-all-fal',
+    // 默认走标准 GPT2 路径，后端会按 aspect_ratio + 1K/2K/4K 映射像素尺寸并用白图占位。
+    // FAL 子模型仍保留为手动选项，但 FAL 的 edit/gen 自动判断需另行修复。
+    apiModel: 'gpt-image-2-all',
     label: 'GPT Image 2',
     tabLabel: 'GPT2',
     provider: 'zhenzhen',
     paramKind: 'gpt-size',
     capabilities: ['t2i', 'i2i', 'edit', 'text-render'],
     apiModelOptions: [
-      { value: 'gpt-image-2-all-fal', label: 'gpt-image-2-all-fal（推荐 2K/4K）' },
-      { value: 'gpt-image-2-fal', label: 'gpt-image-2-fal' },
       { value: 'gpt-image-2-all', label: 'gpt-image-2-all（标准路径）' },
       { value: 'gpt-image-2', label: 'gpt-image-2（标准路径）' },
+      { value: 'gpt-image-2-all-fal', label: 'gpt-image-2-all-fal' },
+      { value: 'gpt-image-2-fal', label: 'gpt-image-2-fal' },
     ],
     aspectRatios: GPT_RATIOS,
     defaultAspectRatio: '1:1',
@@ -70,7 +71,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     defaultSize: '2K',
     supportsReference: true,
     maxReferenceImages: 5,
-    description: '支持文生图/图生图/编辑/文字渲染，默认使用高分辨率 FAL 路径',
+    description: '支持文生图/图生图/编辑/文字渲染',
   },
   {
     id: 'nano-banana-2',
