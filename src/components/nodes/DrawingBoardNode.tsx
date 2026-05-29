@@ -1,4 +1,4 @@
-import { memo, useState, type CSSProperties } from 'react';
+import { memo, useEffect, useState, type CSSProperties } from 'react';
 import { Handle, NodeResizeControl, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
 import { Frame } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
@@ -7,7 +7,14 @@ import { useThemeStore } from '../../stores/theme';
 const COLOR = '#d7ccb3';
 const MIN_W = 280;
 const MIN_H = 180;
+const DEFAULT_W = 1200;
+const DEFAULT_H = 800;
+const LEGACY_DEFAULT_W = 840;
+const LEGACY_DEFAULT_H = 560;
 const RESIZE_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+
+const shouldUpgradeDefaultFrame = (w: number, h: number) =>
+  !w || !h || (w === LEGACY_DEFAULT_W && h === LEGACY_DEFAULT_H);
 
 const DrawingBoardNode = (p: NodeProps) => {
   const update = useUpdateNodeData(p.id);
@@ -17,12 +24,26 @@ const DrawingBoardNode = (p: NodeProps) => {
     : `huazai-frame-resize-handle--tech-${theme === 'dark' ? 'dark' : 'light'}`;
   const d = p.data as any;
   const frameName = String(d?.name || '画框');
+  const rawFrameW = Number(d?.frameW || 0);
+  const rawFrameH = Number(d?.frameH || 0);
+  const initialFrame = shouldUpgradeDefaultFrame(rawFrameW, rawFrameH)
+    ? { w: DEFAULT_W, h: DEFAULT_H }
+    : { w: Math.max(MIN_W, rawFrameW), h: Math.max(MIN_H, rawFrameH) };
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(frameName);
-  const [frameSize, setFrameSize] = useState({
-    w: Math.max(MIN_W, Number(d?.frameW || 1040)),
-    h: Math.max(MIN_H, Number(d?.frameH || 640)),
-  });
+  const [frameSize, setFrameSize] = useState(initialFrame);
+
+  useEffect(() => {
+    const next = shouldUpgradeDefaultFrame(rawFrameW, rawFrameH)
+      ? { w: DEFAULT_W, h: DEFAULT_H }
+      : { w: Math.max(MIN_W, rawFrameW), h: Math.max(MIN_H, rawFrameH) };
+    if (next.w !== frameSize.w || next.h !== frameSize.h) {
+      setFrameSize(next);
+    }
+    if (shouldUpgradeDefaultFrame(rawFrameW, rawFrameH)) {
+      update({ frameW: DEFAULT_W, frameH: DEFAULT_H, resolutionW: DEFAULT_W, resolutionH: DEFAULT_H });
+    }
+  }, [rawFrameW, rawFrameH, frameSize.w, frameSize.h, update]);
 
   const handleResize = (_e: unknown, params: ResizeParams) => {
     const next = {
