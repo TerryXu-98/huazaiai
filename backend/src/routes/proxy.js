@@ -8,6 +8,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const sharp = require('sharp');
 const config = require('../config');
 const { getWhitePng } = require('../utils/whitePng');
 
@@ -68,8 +69,20 @@ function recallTaskKey(taskId) {
   return taskId ? taskKeyMap.get(String(taskId)) : null;
 }
 
+async function readImageDimensions(buf) {
+  try {
+    const meta = await sharp(buf).metadata();
+    const width = Number(meta?.width || 0);
+    const height = Number(meta?.height || 0);
+    return width > 0 && height > 0 ? { width, height } : {};
+  } catch (e) {
+    console.warn('读取图片尺寸失败:', e.message);
+    return {};
+  }
+}
+
 // ========== 工具:保存上游返回的图像到本地 ==========
-async function saveRemoteImage(url) {
+async function saveRemoteImageInfo(url) {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`下载失败: ${res.status}`);
@@ -78,11 +91,17 @@ async function saveRemoteImage(url) {
     const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
     const filePath = path.join(config.OUTPUT_DIR, filename);
     fs.writeFileSync(filePath, buf);
-    return `/files/output/${filename}`;
+    const dims = await readImageDimensions(buf);
+    return { url: `/files/output/${filename}`, ...dims };
   } catch (e) {
     console.error('⚠ 转存图像失败:', e.message);
-    return url; // 退化:返回原 URL
+    return { url }; // 退化:返回原 URL
   }
+}
+
+async function saveRemoteImage(url) {
+  const info = await saveRemoteImageInfo(url);
+  return info.url;
 }
 
 // ========== 工具:保存上游返回的音频到本地 ==========
@@ -103,17 +122,23 @@ async function saveRemoteAudio(url) {
 }
 
 // 处理 b64_json 格式
-function saveBase64Image(b64) {
+async function saveBase64ImageInfo(b64) {
   try {
     const buf = Buffer.from(b64, 'base64');
     const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`;
     const filePath = path.join(config.OUTPUT_DIR, filename);
     fs.writeFileSync(filePath, buf);
-    return `/files/output/${filename}`;
+    const dims = await readImageDimensions(buf);
+    return { url: `/files/output/${filename}`, ...dims };
   } catch (e) {
     console.error('⚠ 解析 b64 失败:', e.message);
     return null;
   }
+}
+
+async function saveBase64Image(b64) {
+  const info = await saveBase64ImageInfo(b64);
+  return info?.url || null;
 }
 
 // ========== POST /api/proxy/image — 图像生成 ==========
@@ -342,12 +367,17 @@ async function normalizeImageResponse(data) {
   // 如果同步返回 data:[{url|b64_json}]
   const items = Array.isArray(data?.data) ? data.data : [];
   if (items.length && (items[0]?.url || items[0]?.b64_json)) {
-    const urls = [];
+    const images = [];
     for (const it of items) {
-      if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
-      else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+      if (it?.b64_json) {
+        const info = await saveBase64ImageInfo(it.b64_json);
+        if (info?.url) images.push(info);
+      } else if (it?.url) {
+        const info = await saveRemoteImageInfo(it.url);
+        if (info?.url) images.push(info);
+      }
     }
-    return { kind: 'sync', urls };
+    return { kind: 'sync', urls: images.map((it) => it.url), images };
   }
   // 异步任务 task_id
   const taskId = typeof data?.data === 'string' ? data.data : (data?.task_id || data?.data?.task_id || data?.id);
@@ -392,13 +422,14 @@ router.post('/image', async (req, res) => {
     }
     const norm = await normalizeImageResponse(data);
     if (norm.kind === 'sync') {
-      return res.json({ success: true, data: { urls: norm.urls, raw: data, model: finalApiModel, prompt } });
+      return res.json({ success: true, data: { urls: norm.urls, images: norm.images, raw: data, model: finalApiModel, prompt } });
     }
     if (norm.kind === 'async') {
       // 同步接口需要同步返回结果 → 内部轮询
-      const url = await pollImageTask(norm.taskId, settings.zhenzhenApiKey);
+      const imageInfo = await pollImageTask(norm.taskId, settings.zhenzhenApiKey);
+      const url = imageInfo?.url;
       if (!url) return res.status(500).json({ success: false, error: '异步任务轮询超时/失败', taskId: norm.taskId });
-      return res.json({ success: true, data: { urls: [url], raw: data, taskId: norm.taskId, model: finalApiModel, prompt } });
+      return res.json({ success: true, data: { urls: [imageInfo.url], images: [imageInfo], raw: data, taskId: norm.taskId, model: finalApiModel, prompt } });
     }
     return res.status(500).json({ success: false, error: '上游未返回图片也未返 task_id: ' + JSON.stringify(data).slice(0, 300) });
   } catch (e) {
@@ -442,7 +473,7 @@ router.post('/image/submit', async (req, res) => {
 
     const norm = await normalizeImageResponse(data);
     if (norm.kind === 'sync') {
-      return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, raw: data } });
+      return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, images: norm.images, raw: data } });
     }
     if (norm.kind === 'async') {
       rememberTaskKey(norm.taskId, settings.zhenzhenApiKey);
@@ -486,12 +517,17 @@ router.get('/image/status/:tid', async (req, res) => {
     if (SUCCESS.includes(status)) {
       const rd = inner.data || {};
       const arr = Array.isArray(rd.data) ? rd.data : (Array.isArray(inner.data) ? inner.data : []);
-      const urls = [];
+      const images = [];
       for (const it of arr) {
-        if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
-        else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+        if (it?.b64_json) {
+          const info = await saveBase64ImageInfo(it.b64_json);
+          if (info?.url) images.push(info);
+        } else if (it?.url) {
+          const info = await saveRemoteImageInfo(it.url);
+          if (info?.url) images.push(info);
+        }
       }
-      return res.json({ success: true, data: { status: 'completed', progress: '100%', urls, raw: data } });
+      return res.json({ success: true, data: { status: 'completed', progress: '100%', urls: images.map((it) => it.url), images, raw: data } });
     }
     if (FAILURE.includes(status)) {
       return res.json({ success: false, data: { status: 'failed', progress, error: inner.fail_reason || '任务失败' } });
@@ -521,8 +557,8 @@ async function pollImageTask(taskId, apiKey, maxRetries = 1800, interval = 2000)
         const rd = inner.data || {};
         const arr = Array.isArray(rd.data) ? rd.data : (Array.isArray(inner.data) ? inner.data : []);
         const it = arr[0];
-        if (it?.b64_json) return saveBase64Image(it.b64_json);
-        if (it?.url) return await saveRemoteImage(it.url);
+        if (it?.b64_json) return await saveBase64ImageInfo(it.b64_json);
+        if (it?.url) return await saveRemoteImageInfo(it.url);
       }
       if (['failure', 'failed', 'error'].includes(st)) {
         console.error('[poll] 任务失败:', inner.fail_reason || st);
@@ -738,14 +774,14 @@ router.post('/image/fal/submit', async (req, res) => {
 
     // 同步返回
     if (Array.isArray(data?.images) && data.images.length) {
-      const urls = [];
+      const images = [];
       for (const it of data.images) {
         if (it?.url) {
-          const local = await saveRemoteImage(it.url);
-          urls.push(local);
+          const local = await saveRemoteImageInfo(it.url);
+          images.push(local);
         }
       }
-      return res.json({ success: true, data: { sync: true, urls, endpoint, raw: data } });
+      return res.json({ success: true, data: { sync: true, urls: images.map((it) => it.url), images, endpoint, raw: data } });
     }
 
     // 异步
@@ -800,14 +836,14 @@ router.post('/image/fal/query', async (req, res) => {
     }
     // 完成
     if (Array.isArray(data.images) && data.images.length) {
-      const urls = [];
+      const images = [];
       for (const it of data.images) {
         if (it?.url) {
-          const local = await saveRemoteImage(it.url);
-          urls.push(local);
+          const local = await saveRemoteImageInfo(it.url);
+          images.push(local);
         }
       }
-      return res.json({ success: true, data: { status: 'completed', urls, raw: data } });
+      return res.json({ success: true, data: { status: 'completed', urls: images.map((it) => it.url), images, raw: data } });
     }
     const st = String(data.status || '').toUpperCase();
     if (st === 'FAILED' || st === 'CANCELLED') {

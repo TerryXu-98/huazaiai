@@ -120,15 +120,40 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
   const imageUrl = d?.imageUrl as string | undefined;
   const hasImageResult = !!imageUrl;
+  const imageWidth = Number(d?.imageWidth || 0);
+  const imageHeight = Number(d?.imageHeight || 0);
+  const hasTrueImageSize = hasImageResult && imageWidth > 0 && imageHeight > 0;
   const layerOnly = hasImageResult && !selected;
   const handleVisibilityClass = selected ? '!opacity-100' : '!opacity-0 !pointer-events-none';
+  const imageResolutionInfo = hasTrueImageSize ? `${imageWidth}×${imageHeight}` : '';
   const mediaInfo = isFal
     ? (falKind === 'gpt-fal'
-      ? `${aspectRatio} · ${sizeLevel}`
-      : `${nbAspect}/${nbResolution}`)
+      ? (imageResolutionInfo ? `${imageResolutionInfo} · ${sizeLevel}` : `${aspectRatio} · ${sizeLevel}`)
+      : (imageResolutionInfo ? `${imageResolutionInfo} · ${nbResolution}` : `${nbAspect}/${nbResolution}`))
     : isMj
-      ? `${mjAr} · ${mjVersion}`
-      : `${aspectRatio} · ${sizeLevel}`;
+      ? (imageResolutionInfo ? `${imageResolutionInfo} · ${mjVersion}` : `${mjAr} · ${mjVersion}`)
+      : (imageResolutionInfo ? `${imageResolutionInfo} · ${sizeLevel}` : `${aspectRatio} · ${sizeLevel}`);
+  const imageFrameStyle = hasTrueImageSize ? { width: imageWidth, height: imageHeight } : { width: 320 };
+  const imageBodyStyle = hasTrueImageSize
+    ? { width: '100%', height: '100%', borderRadius: 0 }
+    : { aspectRatio: aspectRatio?.includes(':') ? aspectRatio.replace(':', '/') : '1 / 1', borderRadius: 0 };
+  const syncNaturalImageSize = (img: HTMLImageElement) => {
+    const width = img.naturalWidth || 0;
+    const height = img.naturalHeight || 0;
+    if (width > 0 && height > 0 && (width !== imageWidth || height !== imageHeight)) {
+      update({ imageWidth: width, imageHeight: height });
+    }
+  };
+  const imagePatchFromResult = (url: string, result?: { images?: Array<{ url?: string; width?: number; height?: number }> }) => {
+    const info = result?.images?.find((it) => it?.url === url) || result?.images?.[0];
+    const width = Number(info?.width || 0);
+    const height = Number(info?.height || 0);
+    return {
+      imageUrl: url,
+      imageWidth: width > 0 ? width : undefined,
+      imageHeight: height > 0 ? height : undefined,
+    };
+  };
   const mediaActionClass = `flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${
     isDark
       ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900 hover:text-white'
@@ -401,7 +426,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           update({
             status: 'success',
             progress: '100%',
-            imageUrl: submit.urls[0],
+            ...imagePatchFromResult(submit.urls[0], submit),
             lastPrompt: finalPrompt,
             usedI2I: allRefs.length > 0,
           });
@@ -431,7 +456,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             update({
               status: 'success',
               progress: '100%',
-              imageUrl: url,
+              ...imagePatchFromResult(url, q),
               lastPrompt: finalPrompt,
               usedI2I: allRefs.length > 0,
             });
@@ -472,7 +497,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         update({
           status: 'success',
           progress: '100%',
-          imageUrl: submit.urls[0],
+          ...imagePatchFromResult(submit.urls[0], submit),
           lastPrompt: finalPrompt,
           usedI2I: allRefs.length > 0,
         });
@@ -505,7 +530,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           update({
             status: 'success',
             progress: '100%',
-            imageUrl: url,
+            ...imagePatchFromResult(url, q),
             lastPrompt: finalPrompt,
             usedI2I: allRefs.length > 0,
           });
@@ -559,9 +584,10 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   if (layerOnly) {
     return (
       <div
-        className="huazai-image-layer group relative mt-8 w-[320px] overflow-visible rounded-none bg-transparent"
+        className="huazai-image-layer group relative mt-8 overflow-visible rounded-none bg-transparent"
         onClickCapture={() => setMenuOpen(true)}
         style={{
+          ...imageFrameStyle,
           border: 0,
           borderRadius: 0,
           boxShadow: 'none',
@@ -588,8 +614,9 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         <img
           src={imageUrl!}
           alt="Preview"
-          className="block h-auto w-full select-none object-contain"
+          className={`block w-full select-none object-contain ${hasTrueImageSize ? 'h-full' : 'h-auto'}`}
           style={{ borderRadius: 0, boxShadow: 'none', transform: `scale(${previewZoom})`, transformOrigin: 'center center' }}
+          onLoad={(e) => syncNaturalImageSize(e.currentTarget)}
           draggable={false}
           onDragStart={(e) => e.preventDefault()}
           data-drag-source
@@ -607,9 +634,10 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className="group relative mt-8 w-[320px] rounded-none bg-transparent"
+      className="group relative mt-8 rounded-none bg-transparent"
       onClickCapture={() => setMenuOpen(true)}
       style={{
+        ...imageFrameStyle,
         background: 'transparent',
         borderRadius: 0,
         outline: 'none',
@@ -645,10 +673,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             ? 'bg-zinc-900/92 text-white shadow-[0_10px_30px_rgba(0,0,0,0.28)]'
             : 'bg-zinc-100 text-zinc-900 shadow-sm'
         }`}
-        style={{
-          aspectRatio: aspectRatio?.includes(':') ? aspectRatio.replace(':', '/') : '1 / 1',
-          borderRadius: 0,
-        }}
+        style={imageBodyStyle}
         
         title="双击打开图像参数"
       >
@@ -658,6 +683,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             alt="Preview"
             className="h-full w-full select-none object-contain"
             style={{ borderRadius: 0, transform: `scale(${previewZoom})`, transformOrigin: 'center center' }}
+            onLoad={(e) => syncNaturalImageSize(e.currentTarget)}
             draggable={false}
             onDragStart={(e) => e.preventDefault()}
             data-drag-source

@@ -22,7 +22,14 @@ export interface GenerateImageRequest {
 
 export interface GenerateImageResult {
   urls: string[]; // 本地相对 URL,如 /files/output/xxx.png
+  images?: GeneratedImageInfo[];
   raw: any;
+}
+
+export interface GeneratedImageInfo {
+  url: string;
+  width?: number;
+  height?: number;
 }
 
 export async function generateImage(req: GenerateImageRequest): Promise<GenerateImageResult> {
@@ -48,6 +55,7 @@ export interface ImageSubmitResult {
   sync: boolean;
   taskId?: string;
   urls?: string[];
+  images?: GeneratedImageInfo[];
   status: string;       // pending / running / completed / failed
   progress: string;     // '0%' / '50%' / '100%'
   raw?: any;
@@ -68,6 +76,7 @@ export interface ImageQueryResult {
   status: string;       // pending / running / completed / failed
   progress: string;
   urls?: string[];
+  images?: GeneratedImageInfo[];
   error?: string;
 }
 
@@ -131,6 +140,7 @@ export interface FalSubmitRequest {
 export interface FalSubmitResult {
   sync: boolean;
   urls?: string[];
+  images?: GeneratedImageInfo[];
   requestId?: string;
   responseUrl?: string;
   endpoint?: string;
@@ -150,6 +160,7 @@ export async function submitImageFal(req: FalSubmitRequest): Promise<FalSubmitRe
 export interface FalQueryResult {
   status: 'pending' | 'completed' | 'failed' | string;
   urls?: string[];
+  images?: GeneratedImageInfo[];
   error?: string;
   falStatus?: string;
 }
