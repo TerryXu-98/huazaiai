@@ -85,6 +85,11 @@ function inferKindFromFile(file: File): UploadKind | null {
   return null;
 }
 
+function formatUploadFileName(name: string) {
+  if (!name) return '';
+  return name.length > 4 ? `${name.slice(0, 4)}…` : name;
+}
+
 const UploadNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const { theme, style } = useThemeStore();
@@ -311,6 +316,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   const headerLabel = meta ? `上传${meta.label}` : '上传素材';
   const layerOnly = !!url && !selected;
   const mediaInfo = fileName || (uploadType ? KIND_META[uploadType].label : 'Upload');
+  const displayMediaInfo = fileName ? formatUploadFileName(fileName) : mediaInfo;
   const mediaActionClass = `flex h-7 w-7 items-center justify-center rounded-full border shadow-lg backdrop-blur transition ${
     isDark
       ? 'border-white/10 bg-zinc-950/88 text-white/80 hover:bg-zinc-900 hover:text-white'
@@ -354,8 +360,8 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
         }`}>
           <div className={`min-w-0 flex-1 truncate rounded-full border px-2 py-1 text-[10px] shadow-lg backdrop-blur ${
             isDark ? 'border-white/10 bg-zinc-950/88 text-white/70' : 'border-black/10 bg-white/92 text-zinc-600'
-          }`}>
-            {fileSize > 0 ? `${mediaInfo} / ${(fileSize / 1024).toFixed(1)} KB` : mediaInfo}
+          }`} title={fileName || mediaInfo}>
+            {fileSize > 0 ? `${displayMediaInfo} / ${(fileSize / 1024).toFixed(1)} KB` : displayMediaInfo}
           </div>
           <div className="pointer-events-auto flex shrink-0 items-center gap-1">
             {uploadType === 'image' && (
@@ -374,6 +380,15 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
             </button>
           </div>
         </div>
+        {selected && uploadType === 'image' && (
+          <ResizableCorners
+            selected={selected}
+            minWidth={80}
+            minHeight={80}
+            accent={handleColor}
+            onResize={(_e, p) => setSize({ w: p.width, h: p.height })}
+          />
+        )}
         {uploadType === 'image' && (
           <img
             src={url}

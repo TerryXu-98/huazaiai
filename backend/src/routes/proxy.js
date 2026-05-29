@@ -154,6 +154,15 @@ function aspectToGptSize(aspectRatio, sizeLevel) {
   return GPT_SIZE_MAP[key] || '1024x1024';
 }
 
+function resolveStandardImageModel(model, sizeLevel) {
+  const m = String(model || '');
+  const lvl = String(sizeLevel || '').toUpperCase();
+  if (m === 'nano-banana-pro' && (lvl === '2K' || lvl === '4K')) {
+    return `nano-banana-pro-${lvl.toLowerCase()}`;
+  }
+  return m;
+}
+
 function parsePixelSize(size) {
   const m = String(size || '').trim().match(/^(\d{2,5})x(\d{2,5})$/i);
   if (!m) return null;
@@ -254,13 +263,14 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
   const lvlLower = String(image_size || '1K').toLowerCase();
   const lvlUpper = String(image_size || '2K').toUpperCase();
   const hasRefs = Array.isArray(refs) && refs.length > 0;
+  const resolvedApiModel = resolveStandardImageModel(finalApiModel, lvlUpper);
 
   // ===== GPT2 总走 multipart /edits?async=true(文生图加白图占位) =====
   if (paramKind === 'gpt-size') {
     const form = new FormData();
-    const px = size || aspectToGptSize(ar, lvlLower);
+    const px = size || (lvlLower === '1k' ? aspectToGptSize(ar, lvlLower) : 'auto');
     form.append('prompt', prompt);
-    form.append('model', finalApiModel);
+    form.append('model', resolvedApiModel);
     form.append('n', String(n || 1));
     form.append('quality', quality || 'auto');
     form.append('moderation', 'auto');
@@ -288,7 +298,7 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
     }
 
     const url = `${upstreamBase}/edits?async=true`;
-    console.log('[upstream] GPT2 multipart → /edits?async=true model:', finalApiModel, 'size:', px, 'aspectRatio:', ar, 'resolution:', lvlLower, 'refs:', refs?.length || 0);
+    console.log('[upstream] GPT2 multipart → /edits?async=true model:', resolvedApiModel, 'size:', px, 'aspectRatio:', ar, 'resolution:', lvlLower, 'refs:', refs?.length || 0);
     return await fetch(url, { method: 'POST', headers: { Authorization: auth }, body: form });
   }
 
@@ -297,9 +307,9 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
     // 图生图 → multipart /edits?async=true
     const form = new FormData();
     form.append('prompt', prompt);
-    form.append('model', finalApiModel);
+    form.append('model', resolvedApiModel);
     form.append('aspect_ratio', isAuto ? '1:1' : ar);
-    if (String(finalApiModel).includes('nano-banana')) form.append('image_size', lvlUpper);
+    if (String(resolvedApiModel).includes('nano-banana')) form.append('image_size', lvlUpper);
     for (let i = 0; i < refs.length; i++) {
       const conv = await refToBuffer(refs[i]);
       if (!conv) continue;
@@ -307,14 +317,14 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
       form.append('image', blob, `image_${i}.${conv.ext}`);
     }
     const url = `${upstreamBase}/edits?async=true`;
-    console.log('[upstream] nano-banana multipart → /edits?async=true model:', finalApiModel, 'aspect_ratio:', ar, 'image_size:', lvlUpper, 'refs:', refs.length);
+    console.log('[upstream] nano-banana multipart → /edits?async=true model:', resolvedApiModel, 'aspect_ratio:', ar, 'image_size:', lvlUpper, 'refs:', refs.length);
     return await fetch(url, { method: 'POST', headers: { Authorization: auth }, body: form });
   }
   // 文生图 → JSON /generations?async=true
-  const body = { prompt, model: finalApiModel, aspect_ratio: isAuto ? '1:1' : ar };
-  if (String(finalApiModel).includes('nano-banana')) body.image_size = lvlUpper;
+  const body = { prompt, model: resolvedApiModel, aspect_ratio: isAuto ? '1:1' : ar };
+  if (String(resolvedApiModel).includes('nano-banana')) body.image_size = lvlUpper;
   const url = `${upstreamBase}/generations?async=true`;
-  console.log('[upstream] nano-banana JSON → /generations?async=true model:', finalApiModel, 'aspect_ratio:', body.aspect_ratio, 'image_size:', body.image_size);
+  console.log('[upstream] nano-banana JSON → /generations?async=true model:', resolvedApiModel, 'aspect_ratio:', body.aspect_ratio, 'image_size:', body.image_size);
   return await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify(body),
