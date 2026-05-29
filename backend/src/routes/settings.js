@@ -81,10 +81,8 @@ router.get('/', (_req, res) => {
   res.json({ success: true, data: masked });
 });
 
-// GET /api/settings/raw — 内部接口,获取明文(供 Phase 4 代理调用使用)
-router.get('/raw', (_req, res) => {
-  res.json({ success: true, data: loadSettings() });
-});
+// 不再暴露 /api/settings/raw。
+// 明文 Key 只允许后端代理在本地进程内读取，避免普通前端 HTTP 请求拿到完整密钥。
 
 // POST /api/settings — 更新设置
 router.post('/', (req, res) => {
