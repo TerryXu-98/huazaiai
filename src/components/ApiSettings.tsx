@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Cloud, Eye, EyeOff, FolderOpen, KeyRound, Loader2, Lock, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { useApiKeysStore, FIXED_ZHENZHEN_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
-import { getRawSettings } from '../services/api';
 
 interface ApiSettingsModalProps {
   open: boolean;
@@ -104,7 +103,6 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   const [cacheBusy, setCacheBusy] = useState(false);
   const [cacheMessage, setCacheMessage] = useState('');
   const [saved, setSaved] = useState(false);
-  const revealedRef = useRef<Partial<Record<KeyField, string>>>({});
 
   useEffect(() => {
     if (open && !loaded) load();
@@ -119,7 +117,6 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     setDownloadDir(settings.downloadDir || '');
     setCacheMessage('');
     void loadCacheStats();
-    revealedRef.current = {};
     setSaved(false);
   }, [open, settings.sharedFolderPath, settings.netdiskUrl, settings.downloadDir]);
 
@@ -129,20 +126,8 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     setInputs((prev) => ({ ...prev, [f]: v }));
   };
 
-  const handleToggleShow = async (f: KeyField) => {
-    const newShow = !shows[f];
-    if (newShow && !inputs[f].trim() && (settings as any)[f]) {
-      try {
-        if (Object.keys(revealedRef.current).length === 0) {
-          revealedRef.current = (await getRawSettings()) as any;
-        }
-      } catch {
-        // Keep the masked display if the raw endpoint is unavailable.
-      }
-      const plain = (revealedRef.current as any)?.[f];
-      if (plain) setInputAt(f, String(plain));
-    }
-    setShows((prev) => ({ ...prev, [f]: newShow }));
+  const handleToggleShow = (f: KeyField) => {
+    setShows((prev) => ({ ...prev, [f]: !prev[f] }));
   };
 
   const handleSave = async () => {
@@ -150,8 +135,6 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     for (const f of ALL_FIELDS) {
       const v = inputs[f].trim();
       if (!v) continue;
-      const revealed = (revealedRef.current as any)?.[f];
-      if (revealed && v === String(revealed)) continue;
       (patch as any)[f] = v;
     }
     if (sharedFolderPath.trim() !== (settings.sharedFolderPath || '')) {
@@ -221,7 +204,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
           <button
             onClick={() => handleToggleShow(f)}
             className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-            title={shows[f] ? '隐藏' : '显示明文'}
+            title={shows[f] ? '隐藏输入内容' : '显示输入内容'}
           >
             {shows[f] ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
