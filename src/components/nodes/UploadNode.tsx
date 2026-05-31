@@ -20,6 +20,8 @@ import ImageEditModal, { type ImageEditProduceMeta } from './ImageEditModal';
 import ResizableCorners from './ResizableCorners';
 import { downloadAsset } from '../../utils/download';
 
+const DEFAULT_UPLOAD_WIDTH = 220;
+
 /**
  * UploadNode - 通用上传素材节点
  *
@@ -113,7 +115,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
 
   // 节点本地尺寸 state: 默认 (260, 高度由内容撑开 — 上传后图/视频会撑高 root)
   // 拖角后由 ResizableCorners onResize 同步具体 px (保证 measured 准确 + keepAspectRatio 生效 + handleBounds 准确)
-  const [size, setSize] = useState<{ w: number; h?: number }>({ w: 260 });
+  const [size, setSize] = useState<{ w: number; h?: number }>({ w: DEFAULT_UPLOAD_WIDTH });
 
   // === 运行总线: 点击 RUN 后根据已上传素材生成下游 OutputNode ===
   // 设计要点:

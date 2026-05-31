@@ -45,6 +45,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   // 主模型 id (对应 VIDEO_MODELS 项)
   const mainId = d?.mainId || (d?.model && VIDEO_MODELS.find((m) => m.id === d.model || m.apiModelOptions.some((o) => o.value === d.model))?.id) || VIDEO_MODELS[0].id;
   const modelDef = useMemo(() => VIDEO_MODELS.find((m) => m.id === mainId) || VIDEO_MODELS[0], [mainId]);
+  const maxRefImages = modelDef.maxRefImages ?? modelDef.maxReferenceImages;
+  const supportImages = modelDef.supportImages ?? maxRefImages > 0;
   // 子模型(上游真实 model 名)
   const apiModel: string = d?.model && modelDef.apiModelOptions.some((o) => o.value === d.model) ? d.model : modelDef.apiModelOptions[0].value;
   // 各参数(跳过着调用 update 默认值)
@@ -278,9 +280,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
       // 参考图预处理:
       //   - Grok: 直接传 URL (本地 /files/* 也可,后端会转上游 URL)
       //   - Veo / Seedance: 转 base64
-      const refs = imageUrls.slice(0, modelDef.maxRefImages);
+      const refs = imageUrls.slice(0, maxRefImages);
       let images: string[] | undefined;
-      if (modelDef.supportImages && refs.length > 0) {
+      if (supportImages && refs.length > 0) {
         if (modelDef.kind === 'grok') {
           images = refs;
         } else {
@@ -355,7 +357,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     if (payload.kind === 'image' && payload.url) {
       const cur = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
       if (cur.indexOf(payload.url) !== -1) return;
-      const cap = (modelDef.maxRefImages || 7) + 4; // 给本地一些余量
+      const cap = (maxRefImages || 7) + 4; // 给本地一些余量
       if (cur.length >= cap) return;
       update({ localRefImages: [...cur, payload.url] });
     } else if (payload.kind === 'text' && typeof payload.text === 'string') {
@@ -699,7 +701,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 上游素材聚合预览区 (代替原「参考图(上游)」计数提示) */}
-        {modelDef.supportImages && (
+        {supportImages && (
           <MaterialPreviewSection
             texts={orderedTexts}
             images={orderedImages}
@@ -711,12 +713,12 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             isDark={isDark}
             isPixel={isPixel}
             groups={previewGroups}
-            title={`上游素材 · 参考图 ${Math.min(refsCount, modelDef.maxRefImages)}/${modelDef.maxRefImages}`}
+            title={`上游素材 · 参考图 ${Math.min(refsCount, maxRefImages)}/${maxRefImages}`}
           />
         )}
 
         {/* 本地拖入参考图 (Ctrl+拖拽自其他节点) */}
-        {modelDef.supportImages && localRefImages.length > 0 && (
+        {supportImages && localRefImages.length > 0 && (
           <div className="rounded border border-emerald-400/30 bg-emerald-500/5 p-1.5">
             <div className="text-[10px] text-emerald-200/80 mb-1">本地拖入参考图 · {localRefImages.length}</div>
             <div className="flex gap-1 flex-wrap">

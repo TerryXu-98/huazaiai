@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { WheelEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -2755,6 +2756,35 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     }),
     [edgeStroke, isPixel]
   );
+  const handleCanvasWheel = useCallback((event: WheelEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest('.nowheel') ||
+      target?.closest('input') ||
+      target?.closest('textarea') ||
+      target?.closest('select') ||
+      target?.closest('[contenteditable="true"]')
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const flowPoint = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const { zoom } = getViewport();
+    const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const nextZoom = Math.min(3, Math.max(0.15, zoom * factor));
+    const localX = event.clientX - bounds.left;
+    const localY = event.clientY - bounds.top;
+
+    setViewport({
+      x: localX - flowPoint.x * nextZoom,
+      y: localY - flowPoint.y * nextZoom,
+      zoom: nextZoom,
+    });
+  }, [getViewport, screenToFlowPosition, setViewport]);
 
   if (!activeId) {
     return (
@@ -2804,6 +2834,10 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         selectionKeyCode={memoSelectionKeyCode}
         multiSelectionKeyCode={memoMultiSelectionKeyCode}
         defaultViewport={memoDefaultViewport}
+        minZoom={0.15}
+        maxZoom={3}
+        zoomOnScroll={false}
+        onWheelCapture={handleCanvasWheel}
         selectionMode={SelectionMode.Partial}
         panOnDrag={interactionMode === 'move'}
         selectionOnDrag={interactionMode === 'select'}

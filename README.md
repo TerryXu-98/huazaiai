@@ -1,12 +1,12 @@
 # HUAZAIDESIGN
 
-> 花再 AI（Huazai AI）· AI 节点画布工作流工具 · Web + Electron 桌面端｜v3.1.4
+> 花再 AI（Huazai AI）· AI 节点画布工作流工具 · Web + Electron 桌面端｜v3.1.5
 >
-> 当前界面品牌：HUAZAIDESIGN；当前安装包：`HuazaiAI-Setup-3.1.4.exe`。
+> 当前界面品牌：HUAZAIDESIGN；当前安装包：`HuazaiAI-Setup-3.1.5.exe`。
 
 一个面向 AI 创作的 **节点式画布**：拖拽节点、连线编排、生成图像 / 视频 / 音频、调用 LLM、串接 RunningHub 工作流，叠加批量执行、智能对齐、打组、双主题与终端日志。Web 浏览器即可使用，亦可一键打包为 Windows 桌面端（NSIS 安装包）。
 
-![status](https://img.shields.io/badge/version-v3.1.4-brightgreen) ![node](https://img.shields.io/badge/node-%E2%89%A518-blue) ![react](https://img.shields.io/badge/react-19-61dafb) ![electron](https://img.shields.io/badge/electron-33-47848f) ![license](https://img.shields.io/badge/license-MIT-yellow)
+![status](https://img.shields.io/badge/version-v3.1.5-brightgreen) ![node](https://img.shields.io/badge/node-%E2%89%A518-blue) ![react](https://img.shields.io/badge/react-19-61dafb) ![electron](https://img.shields.io/badge/electron-33-47848f) ![license](https://img.shields.io/badge/license-MIT-yellow)
 
 ---
 
@@ -82,7 +82,7 @@ Key 保存到 `data/settings.json`；普通前端设置接口仅返回 `****xxxx
 npm run dist
 ```
 
-产物：`dist_electron/HuazaiAI-Setup-3.1.4.exe`
+产物：`dist_electron/HuazaiAI-Setup-3.1.5.exe`
 
 打包链路：`vite build` → `bytenode + T8ENC1` 加密后端为 `.t8c` 字节码 → `electron-builder --win --x64` 出 NSIS 安装包 → `_post_build.cjs` 自动校验 7 个 .t8c + 前端 dist 完整性。
 

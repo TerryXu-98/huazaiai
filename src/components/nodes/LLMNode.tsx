@@ -476,7 +476,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
           >
             {LLM_MODELS.map((m) => (
-              <option key={m.id} value={m.id} className="bg-zinc-900">
+              <option key={m.value} value={m.value} className="bg-zinc-900">
                 {m.label}
               </option>
             ))}

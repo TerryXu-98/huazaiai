@@ -306,12 +306,6 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
     form.append('quality', quality || 'auto');
     form.append('moderation', 'auto');
     form.append('size', px);
-    form.append('image_size', lvlUpper);
-    form.append('aspect_ratio', isAuto ? '1:1' : ar);
-    form.append('aspectRatio', isAuto ? '' : ar); // 主项目用 camelCase
-    form.append('resolution', lvlLower);          // 主项目用小写 1k/2k/4k
-
-    form.append('resolution_label', lvlUpper);
 
     if (hasRefs) {
       for (let i = 0; i < refs.length; i++) {

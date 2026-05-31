@@ -39,6 +39,9 @@ import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMat
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 import { downloadAsset } from '../../utils/download';
 
+const COMPACT_MEDIA_WIDTH = 240;
+const PREVIEW_ZOOM_STEP = 0.25;
+
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
  * 多 TAB 切换:GPT2 / 香蕉2 / 香蕉Pro,参数与主项目 gpt-image-2-web 对齐
@@ -133,9 +136,9 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     : isMj
       ? (imageResolutionInfo ? `${imageResolutionInfo} · ${mjVersion}` : `${mjAr} · ${mjVersion}`)
       : (imageResolutionInfo ? `${imageResolutionInfo} · ${sizeLevel}` : `${aspectRatio} · ${sizeLevel}`);
-  const imageFrameStyle = hasTrueImageSize ? { width: imageWidth, height: imageHeight } : { width: 320 };
+  const imageFrameStyle = { width: COMPACT_MEDIA_WIDTH };
   const imageBodyStyle = hasTrueImageSize
-    ? { width: '100%', height: '100%', borderRadius: 0 }
+    ? { aspectRatio: `${imageWidth} / ${imageHeight}`, borderRadius: 0 }
     : { aspectRatio: aspectRatio?.includes(':') ? aspectRatio.replace(':', '/') : '1 / 1', borderRadius: 0 };
   const syncNaturalImageSize = (img: HTMLImageElement) => {
     const width = img.naturalWidth || 0;
@@ -602,9 +605,9 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             {mediaInfo}
           </div>
           <div className="pointer-events-auto flex items-center gap-1">
-            <button type="button" className={mediaActionClass} title="缩小" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom - 0.1); }}><ZoomOut size={13} /></button>
+            <button type="button" className={mediaActionClass} title="缩小" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom - PREVIEW_ZOOM_STEP); }}><ZoomOut size={13} /></button>
             <button type="button" className={mediaActionClass} title="重置缩放" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(1); }}><RotateCcw size={13} /></button>
-            <button type="button" className={mediaActionClass} title="放大" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom + 0.1); }}><ZoomIn size={13} /></button>
+            <button type="button" className={mediaActionClass} title="放大" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom + PREVIEW_ZOOM_STEP); }}><ZoomIn size={13} /></button>
             <button type="button" className={mediaActionClass} title="下载" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); void downloadAsset(imageUrl!, 'image.png'); }}><Download size={13} /></button>
           </div>
         </div>
@@ -659,9 +662,9 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         </div>
         {imageUrl && (
           <div className="pointer-events-auto flex items-center gap-1">
-            <button type="button" className={mediaActionClass} title="缩小" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom - 0.1); }}><ZoomOut size={13} /></button>
+            <button type="button" className={mediaActionClass} title="缩小" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom - PREVIEW_ZOOM_STEP); }}><ZoomOut size={13} /></button>
             <button type="button" className={mediaActionClass} title="重置缩放" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(1); }}><RotateCcw size={13} /></button>
-            <button type="button" className={mediaActionClass} title="放大" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom + 0.1); }}><ZoomIn size={13} /></button>
+            <button type="button" className={mediaActionClass} title="放大" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setPreviewZoom(previewZoom + PREVIEW_ZOOM_STEP); }}><ZoomIn size={13} /></button>
             <button type="button" className={mediaActionClass} title="下载" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); void downloadAsset(imageUrl, 'image.png'); }}><Download size={13} /></button>
           </div>
         )}

@@ -9,10 +9,10 @@ const canvasZoomRangePlugin = () => ({
     const normalized = id.replace(/\\/g, '/');
     if (!normalized.endsWith('/src/components/Canvas.tsx')) return null;
     const marker = 'defaultEdgeOptions={memoDefaultEdgeOptions}';
-    if (!code.includes(marker) || code.includes('minZoom={0.01}')) return null;
+    if (!code.includes(marker) || code.includes('minZoom=') || code.includes('onWheelCapture=')) return null;
     return code.replace(
       marker,
-      `${marker}\n        minZoom={0.01}\n        maxZoom={4}\n        zoomOnScroll\n        zoomOnPinch`
+      `${marker}\n        minZoom={0.15}\n        maxZoom={3}`
     );
   },
 });
@@ -65,7 +65,7 @@ export default defineConfig({
     },
   },
   define: {
-        __APP_VERSION__: JSON.stringify('3.1.4'),
+        __APP_VERSION__: JSON.stringify('3.1.5'),
     __APP_NAME__: JSON.stringify('花再DESIGN'),
   },
 });
