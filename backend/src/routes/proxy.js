@@ -188,6 +188,9 @@ function aspectToRequiredGptSize(aspectRatio, sizeLevel) {
 function resolveStandardImageModel(model, sizeLevel) {
   const m = String(model || '');
   const lvl = String(sizeLevel || '').toUpperCase();
+  if (m === 'gpt-image-2-all' || m === 'gpt-image-2-all-fal') {
+    return 'gpt-image-2';
+  }
   if (m === 'nano-banana-pro' && (lvl === '2K' || lvl === '4K')) {
     return `nano-banana-pro-${lvl.toLowerCase()}`;
   }
@@ -505,6 +508,8 @@ router.get('/image/status/:tid', async (req, res) => {
     const inner = data?.data || {};
     const status = String(inner.status || '').toLowerCase();
     const progress = inner.progress || '0%';
+    const queueStatus = String(inner?.data?.status || '').toLowerCase();
+    const queuePosition = inner?.data?.queue_position;
     const SUCCESS = ['success', 'completed', 'done'];
     const FAILURE = ['failure', 'failed', 'error'];
     if (SUCCESS.includes(status)) {
@@ -524,6 +529,12 @@ router.get('/image/status/:tid', async (req, res) => {
     }
     if (FAILURE.includes(status)) {
       return res.json({ success: false, data: { status: 'failed', progress, error: inner.fail_reason || '任务失败' } });
+    }
+    if (queueStatus === 'in_queue' || queueStatus === 'queued') {
+      return res.json({ success: true, data: { status: 'queued', progress, queueStatus, queuePosition, raw: data } });
+    }
+    if (queueStatus === 'in_progress' || queueStatus === 'running') {
+      return res.json({ success: true, data: { status: 'running', progress: progress === '0%' ? '10%' : progress, queueStatus, queuePosition, raw: data } });
     }
     res.json({ success: true, data: { status: status || 'pending', progress, raw: data } });
   } catch (e) {

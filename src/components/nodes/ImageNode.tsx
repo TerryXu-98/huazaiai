@@ -41,6 +41,10 @@ import { downloadAsset } from '../../utils/download';
 
 const COMPACT_MEDIA_WIDTH = 240;
 const PREVIEW_ZOOM_STEP = 0.25;
+const LEGACY_GPT_IMAGE_MODELS = new Set(['gpt-image-2-all', 'gpt-image-2-all-fal']);
+const normalizeImageApiModel = (value: string) => (
+  LEGACY_GPT_IMAGE_MODELS.has(value) ? 'gpt-image-2' : value
+);
 
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
@@ -75,7 +79,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const sizeLevel = d?.sizeLevel || modelDef.defaultSize;
   // 子模型变体(对齐 gpt-image-2-web 的 g_model/n_model)
   const storedApiModel = d?.apiModel || modelDef.apiModel;
-  const apiModel = storedApiModel === 'gpt-image-2-all-fal' ? 'gpt-image-2' : storedApiModel;
+  const apiModel = normalizeImageApiModel(storedApiModel);
 
   // ========== FAL 渠道识别及参数(不影响其他模型) ==========
   const isFal = isFalModel(apiModel);
@@ -518,15 +522,27 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       const maxPoll = 1800;     // 最多 1800 次
       const interval = 2000;    // 每 2 秒一次
       let lastProg = '5%';
+      let lastStatusKey = '';
+      let stagnantPolls = 0;
+      const stalledQueueLimit = 90;
       for (let i = 0; i < maxPoll; i++) {
         await new Promise((r) => setTimeout(r, interval));
         const q = await queryImageStatus(taskId, apiModel);
+        const st = String(q.status || '').toLowerCase();
+        const statusKey = `${st}:${q.progress || ''}`;
+        if (statusKey === lastStatusKey) stagnantPolls += 1;
+        else {
+          stagnantPolls = 0;
+          lastStatusKey = statusKey;
+        }
+        if (['queued', 'in_queue', 'not_start', 'not_started'].includes(st) && stagnantPolls >= stalledQueueLimit) {
+          throw new Error('上游任务长时间停在队列中，请稍后重试或切换 gpt-image-2 标准路径重新生成');
+        }
         if (q.progress && q.progress !== lastProg) {
           lastProg = q.progress;
           update({ progress: q.progress });
           logBus.debug(`[${i + 1}/${maxPoll}] status=${q.status} progress=${q.progress}`, src);
         }
-        const st = String(q.status || '').toLowerCase();
         if (st === 'completed' || st === 'success' || st === 'done') {
           const url = q.urls?.[0];
           if (!url) throw new Error('任务完成但未返回图片');
