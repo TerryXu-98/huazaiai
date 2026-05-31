@@ -685,3 +685,66 @@ body.cut-mode .react-flow__edge .react-flow__edge-interaction {
   border-right: 2px solid;
   border-bottom: 2px solid;
 }
+
+@keyframes huazai-edge-flow {
+  from { stroke-dashoffset: 18; }
+  to { stroke-dashoffset: 0; }
+}
+
+.huazai-edge-flow-path {
+  stroke: var(--hz-accent, #111111);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 8;
+  animation: huazai-edge-flow 0.75s linear infinite;
+  opacity: 0.95;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hz-accent, #111111) 34%, transparent));
+}
+
+/* Generic media resize handles use the same corner-mark language as drawing boards. */
+.react-flow__resize-control.handle.huazai-resize-handle {
+  width: 22px !important;
+  height: 22px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  opacity: 0.72;
+}
+
+.react-flow__resize-control.handle.huazai-resize-handle::after {
+  content: '';
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-color: var(--huazai-resize-accent, #d7ccb3);
+  opacity: 0.95;
+}
+
+.huazai-resize-handle--top-left::after {
+  left: 4px;
+  top: 4px;
+  border-left: 2px solid;
+  border-top: 2px solid;
+}
+
+.huazai-resize-handle--top-right::after {
+  right: 4px;
+  top: 4px;
+  border-right: 2px solid;
+  border-top: 2px solid;
+}
+
+.huazai-resize-handle--bottom-left::after {
+  left: 4px;
+  bottom: 4px;
+  border-left: 2px solid;
+  border-bottom: 2px solid;
+}
+
+.huazai-resize-handle--bottom-right::after {
+  right: 4px;
+  bottom: 4px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+}

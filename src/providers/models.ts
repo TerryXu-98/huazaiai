@@ -62,7 +62,6 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     apiModelOptions: [
       { value: 'gpt-image-2-all', label: 'gpt-image-2-all（标准路径）' },
       { value: 'gpt-image-2', label: 'gpt-image-2（标准路径）' },
-      { value: 'gpt-image-2-all-fal', label: 'gpt-image-2-all-fal' },
       { value: 'gpt-image-2-fal', label: 'gpt-image-2-fal' },
     ],
     aspectRatios: GPT_RATIOS,
@@ -191,12 +190,6 @@ export const FAL_REGISTRY: Record<string, FalEndpointDef> = {
     paramKind: 'gpt-fal',
     maxRefs: 5,
   },
-  'gpt-image-2-all-fal': {
-    endpoint: 'openai/gpt-image-2',
-    editEndpoint: 'openai/gpt-image-2/edit',
-    paramKind: 'gpt-fal',
-    maxRefs: 5,
-  },
   'nano-banana-pro-fal': {
     endpoint: 'fal-ai/nano-banana-pro/edit',
     editEndpoint: 'fal-ai/nano-banana-pro/edit',
@@ -213,7 +206,7 @@ export const FAL_REGISTRY: Record<string, FalEndpointDef> = {
 
 export function isFalModel(apiModel: string | undefined | null): boolean {
   if (!apiModel) return false;
-  return !!FAL_REGISTRY[String(apiModel)] || /-fal$/.test(String(apiModel));
+  return !!FAL_REGISTRY[String(apiModel)];
 }
 
 export const GPT_FAL_SIZES = [

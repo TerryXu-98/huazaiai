@@ -316,8 +316,7 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
       }
     } else {
       // 主项目 line 2861: 无参考图时创建 1024x1024 白图占位
-      const target = parsePixelSize(px) || { width: 1024, height: 1024 };
-      const whiteBuf = getWhitePng(target.width, target.height);
+      const whiteBuf = getWhitePng(1024, 1024);
       const blob = new Blob([whiteBuf], { type: 'image/png' });
       form.append('image', blob, 'blank.png');
     }
@@ -585,12 +584,6 @@ async function pollImageTask(taskId, apiKey, maxRetries = 1800, interval = 2000)
 
 const FAL_REGISTRY = {
   'gpt-image-2-fal': {
-    endpoint: 'openai/gpt-image-2',
-    editEndpoint: 'openai/gpt-image-2/edit',
-    paramKind: 'gpt-fal',
-    maxRefs: 5,
-  },
-  'gpt-image-2-all-fal': {
     endpoint: 'openai/gpt-image-2',
     editEndpoint: 'openai/gpt-image-2/edit',
     paramKind: 'gpt-fal',

@@ -1592,6 +1592,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   }, []);
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
+  const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((n) => n.id)), [selectedNodes]);
   const selectedTextNodes = useMemo(() => selectedNodes.filter((n) => n.type === 'text'), [selectedNodes]);
   const selectedTextIdsRef = useRef<string[]>([]);
   useEffect(() => {
@@ -2756,6 +2757,20 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     }),
     [edgeStroke, isPixel]
   );
+  const memoFlowEdges = useMemo(
+    () =>
+      edges.map((edge) => {
+        const flowActive = selectedNodeIds.has(edge.source) || selectedNodeIds.has(edge.target);
+        return {
+          ...edge,
+          data: {
+            ...((edge.data as Record<string, any> | undefined) || {}),
+            flowActive,
+          },
+        };
+      }),
+    [edges, selectedNodeIds]
+  );
   const handleCanvasWheel = useCallback((event: WheelEvent) => {
     const target = event.target as HTMLElement | null;
     if (
@@ -2812,7 +2827,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       />
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={memoFlowEdges}
         nodeTypes={memoNodeTypes}
         edgeTypes={memoEdgeTypes}
         onNodesChange={onNodesChange}

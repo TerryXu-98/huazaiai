@@ -1,4 +1,3 @@
-// 自定义边组件:鼠标悬停时在中点显示剪刀按钮,点击可断开连线
 import { useRef, useState } from 'react';
 import {
   BaseEdge,
@@ -7,7 +6,7 @@ import {
   useReactFlow,
   type EdgeProps,
 } from '@xyflow/react';
-import { Scissors } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export default function DeletableEdge(props: EdgeProps) {
   const {
@@ -21,8 +20,10 @@ export default function DeletableEdge(props: EdgeProps) {
     style,
     markerEnd,
     selected,
+    data,
   } = props;
   const { setEdges } = useReactFlow();
+  const flowActive = !!(data as any)?.flowActive;
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -33,7 +34,6 @@ export default function DeletableEdge(props: EdgeProps) {
     targetPosition,
   });
 
-  // 用延迟关闭避免鼠标从 path 切到按钮的瞬间闪烁
   const [hover, setHover] = useState(false);
   const hideTimer = useRef<number | null>(null);
   const show = () => {
@@ -65,7 +65,14 @@ export default function DeletableEdge(props: EdgeProps) {
         markerEnd={markerEnd}
         interactionWidth={24}
       />
-      {/* 透明的加宽 hit area,捕捉鼠标 hover (BaseEdge 的 interactionWidth 已自带,这里再补一层,确保事件有响应) */}
+      {flowActive && (
+        <path
+          d={edgePath}
+          fill="none"
+          className="huazai-edge-flow-path"
+          pointerEvents="none"
+        />
+      )}
       <path
         d={edgePath}
         fill="none"
@@ -94,35 +101,35 @@ export default function DeletableEdge(props: EdgeProps) {
             type="button"
             onClick={handleCut}
             onMouseDown={(e) => e.stopPropagation()}
-            title="点击断开连线"
+            title="断开连线"
             aria-label="断开连线"
             style={{
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               borderRadius: '50%',
-              background: '#fff',
-              border: '1.5px solid #ef4444',
-              color: '#ef4444',
+              background: 'var(--hz-surface-strong, #fff)',
+              border: '1px solid var(--hz-danger, #ef4444)',
+              color: 'var(--hz-danger, #ef4444)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.14)',
               padding: 0,
               transition: 'transform 0.15s, background 0.15s, color 0.15s',
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = '#ef4444';
-              (e.currentTarget as HTMLButtonElement).style.color = '#fff';
-              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.15)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--hz-danger, #ef4444)';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--hz-accent-ink, #fff)';
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)';
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = '#fff';
-              (e.currentTarget as HTMLButtonElement).style.color = '#ef4444';
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--hz-surface-strong, #fff)';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--hz-danger, #ef4444)';
               (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
             }}
           >
-            <Scissors size={14} strokeWidth={2.2} />
+            <X size={13} strokeWidth={1.8} />
           </button>
         </div>
       </EdgeLabelRenderer>

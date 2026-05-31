@@ -74,7 +74,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const aspectRatio = d?.aspectRatio || modelDef.defaultAspectRatio;
   const sizeLevel = d?.sizeLevel || modelDef.defaultSize;
   // 子模型变体(对齐 gpt-image-2-web 的 g_model/n_model)
-  const apiModel = d?.apiModel || modelDef.apiModel;
+  const storedApiModel = d?.apiModel || modelDef.apiModel;
+  const apiModel = storedApiModel === 'gpt-image-2-all-fal' ? 'gpt-image-2' : storedApiModel;
 
   // ========== FAL 渠道识别及参数(不影响其他模型) ==========
   const isFal = isFalModel(apiModel);
