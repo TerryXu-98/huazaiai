@@ -173,6 +173,21 @@ const ALIGN_THRESHOLD = 8;
 const ALIGNABLE_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'output', 'drawing-board', 'text', 'video', 'seedance']);
 const LAYERABLE_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'drawing-board', 'text', 'video', 'seedance']);
 const FRAME_CHILD_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'text']);
+const STALE_RUNTIME_STATUSES = new Set(['generating', 'polling', 'submitting', 'running']);
+const stripStaleRuntime = (node: Node): Node => {
+  const data: any = node.data || {};
+  const status = String(data.status || '').toLowerCase();
+  if (!STALE_RUNTIME_STATUSES.has(status)) return node;
+  const nextData = { ...data };
+  delete nextData.taskId;
+  delete nextData.progress;
+  delete nextData.error;
+  delete nextData.isRunning;
+  delete nextData.isPolling;
+  delete nextData.pollingTimer;
+  nextData.status = 'idle';
+  return { ...node, data: nextData };
+};
 const TEXT_FONT_OPTIONS = [
   { label: '系统默认', value: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
   { label: '苹方 / 微软雅黑', value: '"PingFang SC", "Microsoft YaHei", sans-serif' },
@@ -584,7 +599,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         const visibleIds = new Set(visibleNs.map((n: any) => n.id));
         const visibleEs = es.filter((ed: any) => visibleIds.has(ed.source) && visibleIds.has(ed.target));
         const clean = withoutRemovedNodes(visibleNs, visibleEs);
-        const orderedNodes = orderParentFramesFirst(clean.nodes);
+        const orderedNodes = orderParentFramesFirst(clean.nodes).map(stripStaleRuntime);
         setNodes(orderedNodes);
         setEdges(clean.edges);
         lastSavedRef.current = JSON.stringify({ nodes: fixedNs, edges: es });
