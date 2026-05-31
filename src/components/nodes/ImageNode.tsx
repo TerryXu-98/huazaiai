@@ -41,7 +41,7 @@ import { downloadAsset } from '../../utils/download';
 
 const COMPACT_MEDIA_WIDTH = 240;
 const PREVIEW_ZOOM_STEP = 0.25;
-const LEGACY_GPT_IMAGE_MODELS = new Set(['gpt-image-2-all', 'gpt-image-2-all-fal']);
+const LEGACY_GPT_IMAGE_MODELS = new Set(['gpt-image-2-all-fal']);
 const normalizeImageApiModel = (value: string) => (
   LEGACY_GPT_IMAGE_MODELS.has(value) ? 'gpt-image-2' : value
 );

@@ -188,7 +188,7 @@ function aspectToRequiredGptSize(aspectRatio, sizeLevel) {
 function resolveStandardImageModel(model, sizeLevel) {
   const m = String(model || '');
   const lvl = String(sizeLevel || '').toUpperCase();
-  if (m === 'gpt-image-2-all' || m === 'gpt-image-2-all-fal') {
+  if (m === 'gpt-image-2-all-fal') {
     return 'gpt-image-2';
   }
   if (m === 'nano-banana-pro' && (lvl === '2K' || lvl === '4K')) {

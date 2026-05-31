@@ -60,6 +60,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     paramKind: 'gpt-size',
     capabilities: ['t2i', 'i2i', 'edit', 'text-render'],
     apiModelOptions: [
+      { value: 'gpt-image-2-all', label: 'gpt-image-2-all（标准路径）' },
       { value: 'gpt-image-2', label: 'gpt-image-2（标准路径）' },
       { value: 'gpt-image-2-fal', label: 'gpt-image-2-fal' },
     ],
