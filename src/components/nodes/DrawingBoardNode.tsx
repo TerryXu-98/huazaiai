@@ -18,6 +18,15 @@ const PREVIOUS_DEFAULT_H = 800;
 const LARGE_DEFAULT_W = 12000;
 const LARGE_DEFAULT_H = 8000;
 const RESIZE_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+const makeBackground = (d: any) => {
+  if (d?.backgroundMode === 'gradient') {
+    const from = d?.backgroundGradientFrom || '#ffffff';
+    const to = d?.backgroundGradientTo || '#dbeafe';
+    const angle = Number(d?.backgroundGradientAngle ?? 90);
+    return `linear-gradient(${Number.isFinite(angle) ? angle : 90}deg, ${from}, ${to})`;
+  }
+  return d?.backgroundColor || 'rgba(128,128,128,.12)';
+};
 
 const shouldUpgradeDefaultFrame = (w: number, h: number) =>
   !w ||
@@ -122,7 +131,7 @@ const DrawingBoardNode = (p: NodeProps) => {
       <div
         className="huazai-frame-surface absolute inset-0 rounded-none"
         style={{
-          background: 'rgba(128,128,128,.12)',
+          background: makeBackground(d),
           border: p.selected ? `1px solid ${COLOR}` : '1px solid rgba(128,128,128,.34)',
           outline: p.selected ? `1px solid ${COLOR}` : 'none',
           outlineOffset: 0,

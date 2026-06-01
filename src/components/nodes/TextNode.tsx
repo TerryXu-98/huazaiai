@@ -55,6 +55,10 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
   const lineHeight = Number(d?.lineHeight || 1.12);
   const letterSpacing = Number(d?.letterSpacing || 0);
   const color = d?.color || (isDark ? '#ffffff' : '#111111');
+  const colorMode = d?.colorMode === 'gradient' ? 'gradient' : 'solid';
+  const gradientText = colorMode === 'gradient'
+    ? `linear-gradient(${Number(d?.gradientAngle ?? 90)}deg, ${d?.gradientFrom || color}, ${d?.gradientTo || '#ffffff'})`
+    : '';
   const textAlign = (d?.textAlign || 'left') as CSSProperties['textAlign'];
   const [editing, setEditing] = useState(false);
   const measuredSize = useMemo(
@@ -84,7 +88,14 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
     lineHeight,
     letterSpacing,
     color,
-    WebkitTextFillColor: color,
+    WebkitTextFillColor: colorMode === 'gradient' ? 'transparent' : color,
+    ...(colorMode === 'gradient'
+      ? {
+          backgroundImage: gradientText,
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+        }
+      : null),
     textAlign,
     whiteSpace: 'pre',
     overflowWrap: 'normal',
@@ -135,6 +146,10 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
           className="nodrag nowheel absolute inset-0 resize-none bg-transparent p-0 outline-none"
           style={{
             ...textStyle,
+            backgroundImage: 'none',
+            WebkitBackgroundClip: 'initial',
+            backgroundClip: 'initial',
+            WebkitTextFillColor: color,
             width: '100%',
             height: '100%',
             border: 0,
@@ -150,7 +165,7 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
             ...textStyle,
             color: hasText ? color : (isDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)'),
             WebkitTextFillColor: hasText
-              ? color
+              ? (colorMode === 'gradient' ? 'transparent' : color)
               : (isDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)'),
             overflow: 'hidden',
           }}

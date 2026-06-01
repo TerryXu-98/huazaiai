@@ -22,7 +22,7 @@ import {
   type EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Play, Copy, CopyPlus, Trash2, FolderPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Play, Copy, CopyPlus, Trash2, FolderPlus, Download } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useCanvasStore } from '../stores/canvas';
 import { useThemeStore } from '../stores/theme';
@@ -65,6 +65,7 @@ import GroupBoxNode from './nodes/GroupBoxNode';
 import DeletableEdge from './edges/DeletableEdge';
 import { NODE_REGISTRY } from '../config/nodeRegistry';
 import { uploadFile as uploadAssetFile } from '../services/generation';
+import { downloadBlob } from '../utils/download';
 import type { NodeType, NodeMeta } from '../types/canvas';
 import {
   isConnectionValid,
@@ -211,6 +212,51 @@ const FRAME_PRESETS = [
 ];
 const MIN_FRAME_CREATE_W = 48;
 const MIN_FRAME_CREATE_H = 48;
+const COLOR_SWATCHES = ['#111111', '#ffffff', '#ef4444', '#f97316', '#facc15', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+const makeLinearGradientCss = (from: string, to: string, angle: number) =>
+  `linear-gradient(${Number.isFinite(angle) ? angle : 90}deg, ${from || '#111111'}, ${to || '#ffffff'})`;
+
+const getFrameBackgroundCss = (data: Record<string, any>) => {
+  if (data.backgroundMode === 'gradient') {
+    return makeLinearGradientCss(
+      data.backgroundGradientFrom || '#ffffff',
+      data.backgroundGradientTo || '#dbeafe',
+      Number(data.backgroundGradientAngle ?? 90),
+    );
+  }
+  return data.backgroundColor || 'rgba(128,128,128,.12)';
+};
+
+const loadCanvasImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`无法加载图片: ${src}`));
+    image.src = src;
+  });
+
+const drawBackgroundPaint = (ctx: CanvasRenderingContext2D, data: Record<string, any>, w: number, h: number) => {
+  if (data.backgroundMode === 'gradient') {
+    const angle = ((Number(data.backgroundGradientAngle ?? 90) - 90) * Math.PI) / 180;
+    const cx = w / 2;
+    const cy = h / 2;
+    const len = Math.abs(w * Math.cos(angle)) + Math.abs(h * Math.sin(angle));
+    const grad = ctx.createLinearGradient(
+      cx - Math.cos(angle) * len / 2,
+      cy - Math.sin(angle) * len / 2,
+      cx + Math.cos(angle) * len / 2,
+      cy + Math.sin(angle) * len / 2,
+    );
+    grad.addColorStop(0, data.backgroundGradientFrom || '#ffffff');
+    grad.addColorStop(1, data.backgroundGradientTo || '#dbeafe');
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = data.backgroundColor || 'rgba(128,128,128,.12)';
+  }
+  ctx.fillRect(0, 0, w, h);
+};
 
 const isAlignableNode = (node: Node) => !!node.type && ALIGNABLE_NODE_TYPES.has(node.type);
 const isLayerableNode = (node: Node) => !!node.type && LAYERABLE_NODE_TYPES.has(node.type);
@@ -225,8 +271,8 @@ const getNodeSize = (node: Node) => {
     };
   }
   return {
-    w: Math.round(Number((node as any).width || (node as any).measured?.width || data.imageWidth || data.width || data.frameW || 200)),
-    h: Math.round(Number((node as any).height || (node as any).measured?.height || data.imageHeight || data.height || data.frameH || 100)),
+    w: Math.round(Number((node as any).width || (node as any).measured?.width || data.textW || data.imageWidth || data.width || data.frameW || 200)),
+    h: Math.round(Number((node as any).height || (node as any).measured?.height || data.textH || data.imageHeight || data.height || data.frameH || 100)),
   };
 };
 
@@ -1179,6 +1225,95 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     URL.revokeObjectURL(url);
   }, [nodes, edges, activeId]);
 
+  const handleDownloadFrame = useCallback(async (frame: Node) => {
+    const frameData = (frame.data || {}) as Record<string, any>;
+    const frameRect = getNodeRect(frame, nodesRef.current);
+    const width = Math.max(1, Math.round(Number(frameData.frameW || frameRect.w || 800)));
+    const height = Math.max(1, Math.round(Number(frameData.frameH || frameRect.h || 800)));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    drawBackgroundPaint(ctx, frameData, width, height);
+    const members = nodesRef.current
+      .filter((node) => (node as any).parentId === frame.id && canFrameContainNode(node))
+      .sort((a, b) => getLayerZ(a, nodesRef.current.indexOf(a)) - getLayerZ(b, nodesRef.current.indexOf(b)));
+    let skippedVideo = 0;
+
+    for (const node of members) {
+      const data = (node.data || {}) as Record<string, any>;
+      const rect = getNodeRect(node, nodesRef.current);
+      const x = rect.x - frameRect.x;
+      const y = rect.y - frameRect.y;
+      const w = rect.w;
+      const h = rect.h;
+
+      if (node.type === 'text') {
+        const text = String(data.prompt || '');
+        if (!text.trim()) continue;
+        const fontSize = Math.max(8, Number(data.fontSize || 48));
+        const lineHeight = Math.max(0.7, Number(data.lineHeight || 1.12));
+        const fontWeight = Number(data.fontWeight || 600);
+        const fontFamily = data.fontFamily || TEXT_FONT_OPTIONS[0].value;
+        const lines = text.split(/\r?\n/);
+        const linePx = Math.max(fontSize, fontSize * lineHeight);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, width, height);
+        ctx.clip();
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.textBaseline = 'top';
+        ctx.textAlign = data.textAlign === 'center' ? 'center' : data.textAlign === 'right' ? 'right' : 'left';
+        if (data.colorMode === 'gradient') {
+          const angle = ((Number(data.gradientAngle ?? 90) - 90) * Math.PI) / 180;
+          const len = Math.max(w, h);
+          const grad = ctx.createLinearGradient(
+            x + w / 2 - Math.cos(angle) * len / 2,
+            y + h / 2 - Math.sin(angle) * len / 2,
+            x + w / 2 + Math.cos(angle) * len / 2,
+            y + h / 2 + Math.sin(angle) * len / 2,
+          );
+          grad.addColorStop(0, data.gradientFrom || data.color || '#111111');
+          grad.addColorStop(1, data.gradientTo || '#ffffff');
+          ctx.fillStyle = grad;
+        } else {
+          ctx.fillStyle = data.color || '#111111';
+        }
+        const baseX = ctx.textAlign === 'center' ? x + w / 2 : ctx.textAlign === 'right' ? x + w : x;
+        lines.forEach((line, index) => ctx.fillText(line || ' ', baseX, y + index * linePx));
+        ctx.restore();
+        continue;
+      }
+
+      const imageUrl = data.imageUrl || (data.uploadType === 'image' ? data.imageUrl : '');
+      if (imageUrl) {
+        try {
+          const image = await loadCanvasImage(String(imageUrl));
+          const scale = Math.min(w / image.naturalWidth, h / image.naturalHeight);
+          const dw = image.naturalWidth * scale;
+          const dh = image.naturalHeight * scale;
+          ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+        } catch (err) {
+          console.warn('frame export image skipped', node.id, err);
+        }
+        continue;
+      }
+
+      if (node.type === 'video' || node.type === 'seedance') {
+        skippedVideo += 1;
+      }
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+    await downloadBlob(blob, `frame-${width}x${height}-${Date.now()}.png`);
+    if (skippedVideo > 0) {
+      alert(`画框已导出。${skippedVideo} 个视频节点无法读取当前帧，已跳过。`);
+    }
+  }, []);
+
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -1768,7 +1903,34 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const closePaneMenu = useCallback(() => setPaneMenu(null), []);
   const handleLayerOrder = useCallback((ids: string[], action: 'forward' | 'backward' | 'front' | 'back') => {
-    setNodes((prev) => reorderLayerNodes(prev, ids, action));
+    setNodes((prev) => {
+      const first = prev.find((n) => ids.includes(n.id));
+      const parentId = first ? (first as any).parentId as string | undefined : undefined;
+      if (!parentId) return reorderLayerNodes(prev, ids, action);
+      const selectedIds = new Set(ids);
+      const scoped = prev
+        .filter((n) => (n as any).parentId === parentId && isLayerableNode(n))
+        .sort((a, b) => getLayerZ(a, prev.indexOf(a)) - getLayerZ(b, prev.indexOf(b)));
+      if (action === 'front') {
+        scoped.sort((a, b) => Number(selectedIds.has(a.id)) - Number(selectedIds.has(b.id)));
+      } else if (action === 'back') {
+        scoped.sort((a, b) => Number(selectedIds.has(b.id)) - Number(selectedIds.has(a.id)));
+      } else if (action === 'forward') {
+        for (let i = scoped.length - 2; i >= 0; i -= 1) {
+          if (selectedIds.has(scoped[i].id) && !selectedIds.has(scoped[i + 1].id)) {
+            [scoped[i], scoped[i + 1]] = [scoped[i + 1], scoped[i]];
+          }
+        }
+      } else {
+        for (let i = 1; i < scoped.length; i += 1) {
+          if (selectedIds.has(scoped[i].id) && !selectedIds.has(scoped[i - 1].id)) {
+            [scoped[i - 1], scoped[i]] = [scoped[i], scoped[i - 1]];
+          }
+        }
+      }
+      const zById = new Map(scoped.map((n, i) => [n.id, 1000 + i * 10]));
+      return prev.map((n) => (zById.has(n.id) ? { ...n, zIndex: zById.get(n.id) } : n));
+    });
   }, []);
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
@@ -1792,6 +1954,24 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   const selectedFontValue = TEXT_FONT_OPTIONS.some((f) => f.value === primaryTextData.fontFamily) ? primaryTextData.fontFamily : '';
   const customFontValue = selectedFontValue ? '' : (primaryTextData.fontFamily || '');
   const currentTextColor = primaryTextData.color || (theme === 'dark' ? '#ffffff' : '#111111');
+  const colorTarget = primaryTextNode ? 'text' : selectedFrameNode ? 'frame' : null;
+  const colorTargetData = primaryTextNode ? primaryTextData : selectedFrameData;
+  const colorPanelDisabled = !colorTarget;
+  const currentColorMode = colorTarget === 'frame'
+    ? (colorTargetData.backgroundMode === 'gradient' ? 'gradient' : 'solid')
+    : (colorTargetData.colorMode === 'gradient' ? 'gradient' : 'solid');
+  const currentSolidColor = colorTarget === 'frame'
+    ? (colorTargetData.backgroundColor || '#ffffff')
+    : currentTextColor;
+  const currentGradientFrom = colorTarget === 'frame'
+    ? (colorTargetData.backgroundGradientFrom || currentSolidColor)
+    : (colorTargetData.gradientFrom || currentSolidColor);
+  const currentGradientTo = colorTarget === 'frame'
+    ? (colorTargetData.backgroundGradientTo || '#dbeafe')
+    : (colorTargetData.gradientTo || '#ffffff');
+  const currentGradientAngle = Number(colorTarget === 'frame'
+    ? (colorTargetData.backgroundGradientAngle ?? 90)
+    : (colorTargetData.gradientAngle ?? 90));
   const inspectorInputClass = `mt-1 w-full rounded-md border px-2 py-1.5 text-xs outline-none disabled:cursor-not-allowed disabled:opacity-40 ${
     theme === 'dark'
       ? 'border-white/14 bg-zinc-950/80 text-white placeholder:text-white/30 focus:border-white/30 focus:bg-zinc-900/90'
@@ -1830,18 +2010,41 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       const text = String(raw).replace(/\s+/g, ' ').trim();
       return text ? text.slice(0, 28) : node.id.slice(0, 12);
     };
-    return nodes
+    const visibleNodes = nodes
       .filter((node) => {
         const type = String(node.type || '');
         return node.id !== BULK_PHANTOM_ID && type !== 'output' && !REMOVED_NODE_TYPES.has(type);
-      })
-      .sort((a, b) => getLayerZ(b, nodes.indexOf(b)) - getLayerZ(a, nodes.indexOf(a)))
-      .map((node) => ({
+      });
+    const toItem = (node: Node, level: number) => ({
         node,
         typeLabel: nodeLabelByType.get(node.type as NodeType) || String(node.type || '节点'),
         summary: summarizeNode(node),
         sortable: isLayerableNode(node),
-      }));
+        level,
+      });
+    const childrenByFrame = new Map<string, Node[]>();
+    visibleNodes.forEach((node) => {
+      const parentId = (node as any).parentId as string | undefined;
+      if (!parentId) return;
+      const parent = visibleNodes.find((n) => n.id === parentId && n.type === 'drawing-board');
+      if (!parent) return;
+      const list = childrenByFrame.get(parentId) || [];
+      list.push(node);
+      childrenByFrame.set(parentId, list);
+    });
+    const topLevel = visibleNodes
+      .filter((node) => !(node as any).parentId || !visibleNodes.some((n) => n.id === (node as any).parentId && n.type === 'drawing-board'))
+      .sort((a, b) => getLayerZ(b, nodes.indexOf(b)) - getLayerZ(a, nodes.indexOf(a)));
+    const items: Array<{ node: Node; typeLabel: string; summary: string; sortable: boolean; level: number }> = [];
+    topLevel.forEach((node) => {
+      items.push(toItem(node, 0));
+      if (node.type === 'drawing-board') {
+        (childrenByFrame.get(node.id) || [])
+          .sort((a, b) => getLayerZ(b, nodes.indexOf(b)) - getLayerZ(a, nodes.indexOf(a)))
+          .forEach((child) => items.push(toItem(child, 1)));
+      }
+    });
+    return items;
   }, [nodes, nodeLabelByType]);
 
   const updateSelectedText = useCallback((patch: Record<string, any>) => {
@@ -1858,6 +2061,23 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       )
     );
   }, [selectedTextNodes]);
+
+  const updateSelectedFrameBackground = useCallback((patch: Record<string, any>) => {
+    const id = selectedFrameNode?.id;
+    if (!id) return;
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === id && n.type === 'drawing-board'
+          ? { ...n, data: { ...((n.data as any) || {}), ...patch } }
+          : n
+      )
+    );
+  }, [selectedFrameNode?.id]);
+
+  const updateCurrentColorTarget = useCallback((patch: Record<string, any>) => {
+    if (colorTarget === 'text') updateSelectedText(patch);
+    if (colorTarget === 'frame') updateSelectedFrameBackground(patch);
+  }, [colorTarget, updateSelectedFrameBackground, updateSelectedText]);
 
   const alignSelectedNodes = useCallback((mode: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom') => {
     setNodes((prev) => {
@@ -3337,6 +3557,114 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                 <div className={isDark ? 'mt-1.5 text-[10px] text-white/35' : 'mt-1.5 text-[10px] text-zinc-400'}>
                   {selectedFrameNode ? '当前画框将按新尺寸调整' : '未选中画框时会在视口中心生成'}
                 </div>
+                {selectedFrameNode && (
+                  <button
+                    type="button"
+                    className={`mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[11px] transition ${
+                      isDark ? 'bg-white/10 text-white/78 hover:bg-white/16' : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                    }`}
+                    onClick={() => void handleDownloadFrame(selectedFrameNode)}
+                  >
+                    <Download size={13} />
+                    下载画框 PNG
+                  </button>
+                )}
+              </div>
+            )}
+
+            {colorTarget && (
+              <div className={`mb-3 rounded-lg border p-2 ${isDark ? 'border-white/10 bg-white/[0.035]' : 'border-black/8 bg-black/[0.025]'}`}>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className={isDark ? 'text-[10px] text-white/55' : 'text-[10px] text-zinc-600'}>
+                    {colorTarget === 'frame' ? '画框背景' : '文字颜色'}
+                  </span>
+                  <div className={`grid grid-cols-2 gap-0.5 rounded-md border p-0.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-white'}`}>
+                    {(['solid', 'gradient'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={colorPanelDisabled}
+                        className={`rounded px-1.5 py-0.5 text-[10px] transition ${
+                          currentColorMode === mode
+                            ? isDark ? 'bg-white/18 text-white' : 'bg-zinc-900 text-white'
+                            : isDark ? 'text-white/45 hover:bg-white/8' : 'text-zinc-500 hover:bg-black/5'
+                        }`}
+                        onClick={() => updateCurrentColorTarget(colorTarget === 'frame'
+                          ? { backgroundMode: mode }
+                          : { colorMode: mode })}
+                      >
+                        {mode === 'solid' ? '纯色' : '渐变'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {currentColorMode === 'solid' ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={currentSolidColor}
+                      onChange={(e) => updateCurrentColorTarget(colorTarget === 'frame'
+                        ? { backgroundMode: 'solid', backgroundColor: e.target.value }
+                        : { colorMode: 'solid', color: e.target.value })}
+                      className="h-8 w-9 rounded border-0 bg-transparent p-0"
+                    />
+                    <div className="grid flex-1 grid-cols-5 gap-1">
+                      {COLOR_SWATCHES.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className="h-6 rounded border"
+                          style={{ background: color, borderColor: isDark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.16)' }}
+                          title={color}
+                          onClick={() => updateCurrentColorTarget(colorTarget === 'frame'
+                            ? { backgroundMode: 'solid', backgroundColor: color }
+                            : { colorMode: 'solid', color })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div
+                      className="h-7 rounded-md border"
+                      style={{
+                        background: makeLinearGradientCss(currentGradientFrom, currentGradientTo, currentGradientAngle),
+                        borderColor: isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.12)',
+                      }}
+                    />
+                    <div className="grid grid-cols-[auto_auto_1fr] gap-1.5">
+                      <input
+                        type="color"
+                        value={currentGradientFrom}
+                        onChange={(e) => updateCurrentColorTarget(colorTarget === 'frame'
+                          ? { backgroundMode: 'gradient', backgroundGradientFrom: e.target.value }
+                          : { colorMode: 'gradient', gradientFrom: e.target.value })}
+                        className="h-8 w-9 rounded border-0 bg-transparent p-0"
+                        title="起始色"
+                      />
+                      <input
+                        type="color"
+                        value={currentGradientTo}
+                        onChange={(e) => updateCurrentColorTarget(colorTarget === 'frame'
+                          ? { backgroundMode: 'gradient', backgroundGradientTo: e.target.value }
+                          : { colorMode: 'gradient', gradientTo: e.target.value })}
+                        className="h-8 w-9 rounded border-0 bg-transparent p-0"
+                        title="结束色"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={360}
+                        value={currentGradientAngle}
+                        onChange={(e) => updateCurrentColorTarget(colorTarget === 'frame'
+                          ? { backgroundMode: 'gradient', backgroundGradientAngle: Number(e.target.value) || 0 }
+                          : { colorMode: 'gradient', gradientAngle: Number(e.target.value) || 0 })}
+                        className={inspectorInputClass}
+                        title="渐变角度"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3426,16 +3754,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                 </label>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <input
-                  disabled={textControlsDisabled}
-                  type="color"
-                  value={currentTextColor}
-                  onChange={(e) => updateSelectedText({ color: e.target.value })}
-                  className="h-8 w-9 rounded border-0 bg-transparent p-0 disabled:opacity-40"
-                  title="文字颜色"
-                />
-                <div className={`grid flex-1 grid-cols-3 gap-1 rounded-md border p-1 ${isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/[0.03]'}`}>
+              <div className={`grid grid-cols-3 gap-1 rounded-md border p-1 ${isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/[0.03]'}`}>
                   {textAlignIconButtons.map(([value, iconName, title]) => {
                     const Icon = ((LucideIcons as any)[iconName] || (LucideIcons as any).Minus) as any;
                     const active = (primaryTextData.textAlign || 'left') === value;
@@ -3454,7 +3773,6 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                       </button>
                     );
                   })}
-                </div>
               </div>
             </div>
 
@@ -3469,7 +3787,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                     当前画布没有窗口
                   </div>
                 )}
-                {layerItems.map(({ node, typeLabel, summary, sortable }) => {
+                {layerItems.map(({ node, typeLabel, summary, sortable, level }) => {
                   const active = !!node.selected;
                   const orderButtonClass = `flex h-6 w-6 items-center justify-center rounded transition disabled:cursor-not-allowed disabled:opacity-25 ${
                     isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-zinc-500 hover:bg-black/5 hover:text-zinc-900'
@@ -3482,6 +3800,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                           ? isDark ? 'border-sky-300/40 bg-sky-400/10' : 'border-sky-500/30 bg-sky-500/10'
                           : isDark ? 'border-white/8 bg-white/[0.035]' : 'border-black/8 bg-black/[0.025]'
                       }`}
+                      style={{ marginLeft: level ? 14 : 0 }}
                     >
                       <button
                         type="button"
@@ -3492,7 +3811,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-semibold ${
                           isDark ? 'bg-white/8 text-white/70' : 'bg-black/[0.04] text-zinc-600'
                         }`}>
-                          {typeLabel.slice(0, 1)}
+                          {level ? '└' : typeLabel.slice(0, 1)}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className={`block truncate text-[11px] font-medium ${isDark ? 'text-white/78' : 'text-zinc-800'}`}>{typeLabel}</span>

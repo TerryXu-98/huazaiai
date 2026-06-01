@@ -16,6 +16,7 @@ function notifyDownloadError(message: string, directory?: string) {
 }
 
 function fileNameFromUrl(url: string, fallback: string) {
+  if (url.startsWith('blob:') || url.startsWith('data:')) return fallback;
   try {
     const pathname = new URL(url, window.location.origin).pathname;
     const name = decodeURIComponent(pathname.split('/').pop() || '');
@@ -117,4 +118,34 @@ export async function downloadAsset(url: string, fallbackName = 'asset'): Promis
   document.body.removeChild(a);
   if (objectUrl) window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   return { fileName };
+}
+
+export async function downloadBlob(blob: Blob, fallbackName = 'asset.png'): Promise<DownloadResult | undefined> {
+  if (!blob) return undefined;
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('blob read failed'));
+      reader.readAsDataURL(blob);
+    });
+    const res = await fetch('/api/files/upload-base64', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl, prefix: 'frame' }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json?.success && json?.data?.url) {
+      return await downloadAsset(json.data.url, fallbackName);
+    }
+    throw new Error(json?.error || `HTTP ${res.status}`);
+  } catch (err) {
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      return await downloadAsset(objectUrl, fallbackName);
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      console.warn('blob upload download fallback used', err);
+    }
+  }
 }
