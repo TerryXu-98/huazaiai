@@ -139,7 +139,7 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
   cinematic: { kind: 'cinematic' },
   'video-motion': { kind: 'video-motion' },
   'custom-tool': { kind: 'custom-tool', customTools: [{ id: 'custom-1', label: '自定义工具', text: '' }], presetId: 'custom-1', prompt: '', draftLabel: '自定义工具', draftPrompt: '' },
-  'drawing-board': { resolutionW: 1024, resolutionH: 1024, frameW: 840, frameH: 560 },
+  'drawing-board': { resolutionW: 800, resolutionH: 800, frameW: 800, frameH: 800 },
   'multi-angle-3d': { preset: 'multi-angle-3d' },
   'panorama-720': { preset: 'panorama-720' },
   'portrait-preset': { preset: 'portrait-preset' },
@@ -172,7 +172,7 @@ const SNAP_GRID: [number, number] = [20, 20];
 const ALIGN_THRESHOLD = 8;
 const ALIGNABLE_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'output', 'drawing-board', 'text', 'video', 'seedance']);
 const LAYERABLE_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'drawing-board', 'text', 'video', 'seedance']);
-const FRAME_CHILD_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'text']);
+const FRAME_CHILD_NODE_TYPES = new Set<string>(['image', 'edit', 'upload', 'text', 'video', 'seedance']);
 const STALE_RUNTIME_STATUSES = new Set(['generating', 'polling', 'submitting', 'running']);
 const stripStaleRuntime = (node: Node): Node => {
   const data: any = node.data || {};
@@ -197,15 +197,38 @@ const TEXT_FONT_OPTIONS = [
   { label: '等宽', value: '"SFMono-Regular", Consolas, "Liberation Mono", monospace' },
 ];
 const TEXT_WEIGHT_OPTIONS = [300, 400, 500, 600, 700, 800, 900];
+const FRAME_PRESETS = [
+  { id: 'ecom-800', group: '电商', label: '800×800', w: 800, h: 800 },
+  { id: 'ecom-1000', group: '电商', label: '1000×1000', w: 1000, h: 1000 },
+  { id: 'ecom-1200', group: '电商', label: '1200×1200', w: 1200, h: 1200 },
+  { id: 'ecom-800-1200', group: '电商', label: '800×1200', w: 800, h: 1200 },
+  { id: 'ecom-1200-1600', group: '电商', label: '1200×1600', w: 1200, h: 1600 },
+  { id: 'social-1-1', group: '社媒', label: '1:1', w: 1080, h: 1080 },
+  { id: 'social-3-4', group: '社媒', label: '3:4', w: 1080, h: 1440 },
+  { id: 'social-4-5', group: '社媒', label: '4:5', w: 1080, h: 1350 },
+  { id: 'social-9-16', group: '社媒', label: '9:16', w: 1080, h: 1920 },
+  { id: 'social-16-9', group: '社媒', label: '16:9', w: 1920, h: 1080 },
+];
+const MIN_FRAME_CREATE_W = 48;
+const MIN_FRAME_CREATE_H = 48;
 
 const isAlignableNode = (node: Node) => !!node.type && ALIGNABLE_NODE_TYPES.has(node.type);
 const isLayerableNode = (node: Node) => !!node.type && LAYERABLE_NODE_TYPES.has(node.type);
 const canFrameContainNode = (node: Node) => !!node.type && FRAME_CHILD_NODE_TYPES.has(node.type);
 
-const getNodeSize = (node: Node) => ({
-  w: Math.round((node as any).width || (node as any).measured?.width || (node.data as any)?.frameW || 200),
-  h: Math.round((node as any).height || (node as any).measured?.height || (node.data as any)?.frameH || 100),
-});
+const getNodeSize = (node: Node) => {
+  const data = (node.data || {}) as Record<string, any>;
+  if (node.type === 'drawing-board') {
+    return {
+      w: Math.round(Number(data.frameW || data.resolutionW || (node as any).width || (node as any).measured?.width || 800)),
+      h: Math.round(Number(data.frameH || data.resolutionH || (node as any).height || (node as any).measured?.height || 800)),
+    };
+  }
+  return {
+    w: Math.round(Number((node as any).width || (node as any).measured?.width || data.imageWidth || data.width || data.frameW || 200)),
+    h: Math.round(Number((node as any).height || (node as any).measured?.height || data.imageHeight || data.height || data.frameH || 100)),
+  };
+};
 
 const getNodeAbsolutePosition = (node: Node, allNodes: Node[]): { x: number; y: number } => {
   let x = node.position.x;
@@ -367,6 +390,44 @@ const detachNodesOutsideFrames = (nodes: Node[], movedIds: string[]) => {
   );
 };
 
+const cleanFrameClipStyle = (node: Node): Node => {
+  const style = { ...((node as any).style || {}) } as Record<string, any>;
+  const hadManagedStyle = style.clipPath !== undefined || style.overflow === 'hidden';
+  delete style.clipPath;
+  if (style.overflow === 'hidden') delete style.overflow;
+  if (!hadManagedStyle) return node;
+  return { ...node, style: Object.keys(style).length > 0 ? style : undefined };
+};
+
+const applyFrameClipping = (nodes: Node[]): Node[] => {
+  let changed = false;
+  const next = nodes.map((node) => {
+    const parentId = (node as any).parentId as string | undefined;
+    const parent = parentId ? nodes.find((n) => n.id === parentId && n.type === 'drawing-board') : null;
+    if (!parent || !canFrameContainNode(node)) {
+      const cleaned = cleanFrameClipStyle(node);
+      if (cleaned !== node) changed = true;
+      return cleaned;
+    }
+
+    const nodeRect = getNodeRect(node, nodes);
+    const frameRect = getNodeRect(parent, nodes);
+    const rawLeft = Math.max(0, frameRect.L - nodeRect.L);
+    const rawTop = Math.max(0, frameRect.T - nodeRect.T);
+    const rawRight = Math.max(0, nodeRect.R - frameRect.R);
+    const rawBottom = Math.max(0, nodeRect.B - frameRect.B);
+    const fullyHidden = rawLeft + rawRight >= nodeRect.w || rawTop + rawBottom >= nodeRect.h;
+    const clipPath = fullyHidden
+      ? 'inset(0 100% 100% 0)'
+      : `inset(${Math.round(rawTop)}px ${Math.round(rawRight)}px ${Math.round(rawBottom)}px ${Math.round(rawLeft)}px)`;
+    const style = { ...((node as any).style || {}), clipPath, overflow: 'hidden' };
+    const same = (node as any).style?.clipPath === clipPath && (node as any).style?.overflow === 'hidden';
+    if (!same) changed = true;
+    return same ? node : { ...node, style };
+  });
+  return changed ? next : nodes;
+};
+
 // 鎶婃墍鏈夎妭鐐圭被鍨嬮兘娉ㄥ唽鍒板搴旂粍浠?宸插疄鐜扮殑鐢ㄤ笟鍔＄粍浠?鍏朵綑鐢?Placeholder)
 const nodeTypes = NODE_REGISTRY.reduce<Record<string, any>>((acc, m) => {
   acc[m.type] = SPECIFIC_NODES[m.type] || PlaceholderNode;
@@ -472,6 +533,9 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     nodesRef.current = nodes;
   }, [nodes]);
   useEffect(() => {
+    setNodes((prev) => applyFrameClipping(prev));
+  }, [nodes]);
+  useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
 
@@ -500,6 +564,12 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     x: number;
     y: number;
   } | null>(null);
+  const [frameCreateMode, setFrameCreateMode] = useState(false);
+  const [frameDraft, setFrameDraft] = useState<{
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  } | null>(null);
+  const [customFrameSize, setCustomFrameSize] = useState({ w: 800, h: 800 });
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [inspectorPosition, setInspectorPosition] = useState(getInitialInspectorPosition);
   const inspectorDragRef = useRef<{
@@ -682,10 +752,103 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
     }, 800);
   }, [nodes, edges, activeId, loaded, saveCurrentCanvas]);
 
+  const getViewportCenterFlowPosition = useCallback(() => {
+    const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
+    const rect = flowEl?.getBoundingClientRect();
+    return screenToFlowPosition({
+      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+      y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+    });
+  }, [screenToFlowPosition]);
+
+  const createDrawingBoardFrame = useCallback(
+    (size: { w: number; h: number; label?: string }, topLeft?: { x: number; y: number }) => {
+      const w = Math.max(MIN_FRAME_CREATE_W, Math.round(size.w));
+      const h = Math.max(MIN_FRAME_CREATE_H, Math.round(size.h));
+      const center = topLeft ? null : getViewportCenterFlowPosition();
+      const id = `drawing-board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const newNode: Node = {
+        id,
+        type: 'drawing-board',
+        zIndex: getNextLayerZ(nodesRef.current, 'drawing-board'),
+        position: topLeft
+          ? { x: Math.round(topLeft.x), y: Math.round(topLeft.y) }
+          : { x: Math.round((center?.x || 0) - w / 2), y: Math.round((center?.y || 0) - h / 2) },
+        selected: true,
+        data: {
+          ...(INITIAL_DATA['drawing-board'] || {}),
+          name: size.label || '画框',
+          frameW: w,
+          frameH: h,
+          resolutionW: w,
+          resolutionH: h,
+        },
+      };
+      setNodes((prev) => orderParentFramesFirst([...prev.map((n) => ({ ...n, selected: false })), newNode]));
+      setFrameCreateMode(false);
+      setFrameDraft(null);
+      setPaneMenu(null);
+      setInspectorCollapsed(false);
+      return newNode;
+    },
+    [getViewportCenterFlowPosition],
+  );
+
+  const updateSelectedFrameSize = useCallback((size: { w: number; h: number; label?: string }) => {
+    const w = Math.max(MIN_FRAME_CREATE_W, Math.round(size.w));
+    const h = Math.max(MIN_FRAME_CREATE_H, Math.round(size.h));
+    setNodes((prev) =>
+      applyFrameClipping(
+        prev.map((n) => {
+          if (!n.selected || n.type !== 'drawing-board') return n;
+          return {
+            ...n,
+            data: {
+              ...((n.data as any) || {}),
+              frameW: w,
+              frameH: h,
+              resolutionW: w,
+              resolutionH: h,
+              ...(size.label ? { framePresetLabel: size.label } : {}),
+            },
+          };
+        }),
+      ),
+    );
+  }, []);
+
+  const applyFrameSizeChoice = useCallback(
+    (size: { w: number; h: number; label?: string }) => {
+      const hasSelectedFrame = nodesRef.current.some((n) => n.selected && n.type === 'drawing-board');
+      if (hasSelectedFrame) {
+        updateSelectedFrameSize(size);
+      } else {
+        createDrawingBoardFrame(size);
+      }
+    },
+    [createDrawingBoardFrame, updateSelectedFrameSize],
+  );
+
+  const cancelFrameCreateMode = useCallback(() => {
+    setFrameCreateMode(false);
+    setFrameDraft(null);
+  }, []);
+
   // 娣诲姞鑺傜偣(渚?Sidebar 璋冪敤) 鈥斺€?榛樿钀藉湪褰撳墠瑙嗗彛涓績
   // 鍙€?atScreen 浼犲叆灞忓箷鍧愭爣锛岃妭鐐逛細钀藉湪璇ョ偣(鐢ㄤ簬鍙抽敭鐢诲竷绌虹櫧鍖烘坊鍔?
   const addNode = useCallback(
     (type: NodeType, atScreen?: { x: number; y: number }) => {
+      if (type === 'drawing-board' && !atScreen) {
+        setFrameCreateMode(true);
+        setFrameDraft(null);
+        setPaneMenu(null);
+        setInspectorCollapsed(false);
+        return;
+      }
+      if (type === 'drawing-board' && atScreen) {
+        createDrawingBoardFrame({ w: customFrameSize.w, h: customFrameSize.h, label: `${customFrameSize.w}×${customFrameSize.h}` }, screenToFlowPosition(atScreen));
+        return;
+      }
       const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       let cx: number;
       let cy: number;
@@ -722,7 +885,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
       };
       setNodes((prev) => [...prev, newNode]);
     },
-    [screenToFlowPosition]
+    [createDrawingBoardFrame, customFrameSize.h, customFrameSize.w, screenToFlowPosition]
   );
 
   // ===== 澶嶅埗 / 绮樿创 / 鍒犻櫎 =====
@@ -1332,10 +1495,12 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
           if (ref.memberIds.length > 0) {
             const idSet = new Set(ref.memberIds);
             setNodes((prev) =>
-              prev.map((n) =>
-                idSet.has(n.id) && !(n as any).parentId
-                  ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
-                  : n
+              applyFrameClipping(
+                prev.map((n) =>
+                  idSet.has(n.id) && !(n as any).parentId
+                    ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
+                    : n
+                )
               )
             );
           }
@@ -1570,7 +1735,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         );
         const detached = detachNodesOutsideFrames(prev, attachIds);
         const justDetached = detached.some((n) => hadParent.has(n.id) && !(n as any).parentId);
-        return justDetached ? detached : attachNodesToFrames(detached, attachIds);
+        return applyFrameClipping(justDetached ? detached : attachNodesToFrames(detached, attachIds));
       });
     }
   
@@ -1609,6 +1774,11 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
   const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((n) => n.id)), [selectedNodes]);
   const selectedTextNodes = useMemo(() => selectedNodes.filter((n) => n.type === 'text'), [selectedNodes]);
+  const selectedFrameNode = useMemo(() => selectedNodes.find((n) => n.type === 'drawing-board') || null, [selectedNodes]);
+  const selectedFrameData = (selectedFrameNode?.data || {}) as Record<string, any>;
+  const framePanelVisible = frameCreateMode || !!selectedFrameNode;
+  const activeFrameW = Math.round(Number(selectedFrameData.frameW || selectedFrameData.resolutionW || customFrameSize.w || 800));
+  const activeFrameH = Math.round(Number(selectedFrameData.frameH || selectedFrameData.resolutionH || customFrameSize.h || 800));
   const selectedTextIdsRef = useRef<string[]>([]);
   useEffect(() => {
     if (selectedTextNodes.length > 0) {
@@ -1764,12 +1934,51 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   const onPaneContextMenu = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
       e.preventDefault();
+      if (frameCreateMode) {
+        cancelFrameCreateMode();
+        setPaneMenu(null);
+        return;
+      }
       setContextMenu(null);
       const x = (e as MouseEvent).clientX;
       const y = (e as MouseEvent).clientY;
       setPaneMenu({ x, y });
     },
-    []
+    [cancelFrameCreateMode, frameCreateMode]
+  );
+
+  const onFrameCreatePaneMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!frameCreateMode || e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('.react-flow__pane')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const start = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      setFrameDraft({ start, end: start });
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const end = screenToFlowPosition({ x: moveEvent.clientX, y: moveEvent.clientY });
+        setFrameDraft({ start, end });
+      };
+      const onUp = (upEvent: MouseEvent) => {
+        window.removeEventListener('mousemove', onMove, true);
+        window.removeEventListener('mouseup', onUp, true);
+        const end = screenToFlowPosition({ x: upEvent.clientX, y: upEvent.clientY });
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x);
+        const h = Math.abs(end.y - start.y);
+        if (w >= MIN_FRAME_CREATE_W && h >= MIN_FRAME_CREATE_H) {
+          createDrawingBoardFrame({ w, h, label: `${Math.round(w)}×${Math.round(h)}` }, { x, y });
+        } else {
+          setFrameDraft(null);
+        }
+      };
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+    },
+    [createDrawingBoardFrame, frameCreateMode, screenToFlowPosition],
   );
 
   // 璁板綍鏈€鏂伴€変腑鐨勮妭鐐?id 鍒楄〃(浠ヤ究 onSelectionEnd 璇诲彇)
@@ -1808,7 +2017,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         }
       }
       setNodes((nds) => {
-        const next = applyNodeChanges(changes, nds);
+        const next = applyFrameClipping(applyNodeChanges(changes, nds));
         // 鍚屾閫変腑鏁?鐢?next 璁＄畻鏇村噯纭?
         const selCount = next.reduce((acc, n) => acc + (n.selected ? 1 : 0), 0);
         setSelectedCount(selCount);
@@ -2831,7 +3040,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
   }
 
   return (
-    <div className="flex-1 relative" style={{ background: bgColor }}>
+    <div className="flex-1 relative" style={{ background: bgColor, cursor: frameCreateMode ? 'crosshair' : undefined }}>
       <TerminalPanel />
       <input
         ref={fileInputRef}
@@ -2857,6 +3066,7 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         onSelectionContextMenu={onSelectionContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
+        onMouseDown={onFrameCreatePaneMouseDown}
         onDragOver={handlePaneDragOver}
         onDrop={handlePaneDrop}
         onSelectionChange={onSelectionChange}
@@ -2869,9 +3079,9 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
         zoomOnScroll={false}
         onWheelCapture={handleCanvasWheel}
         selectionMode={SelectionMode.Partial}
-        panOnDrag={interactionMode === 'move'}
-        selectionOnDrag={interactionMode === 'select'}
-        nodesDraggable={interactionMode === 'select'}
+        panOnDrag={!frameCreateMode && interactionMode === 'move'}
+        selectionOnDrag={!frameCreateMode && interactionMode === 'select'}
+        nodesDraggable={!frameCreateMode && interactionMode === 'select'}
         snapToGrid={snapEnabled}
         snapGrid={SNAP_GRID}
         elevateNodesOnSelect={false}
@@ -2884,6 +3094,37 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
           size={isPixel ? 1.6 : 1.2}
           color={dotColor}
         />
+        {frameDraft && (
+          <ViewportPortal>
+            <div
+              className="pointer-events-none absolute rounded-none"
+              style={{
+                left: Math.min(frameDraft.start.x, frameDraft.end.x),
+                top: Math.min(frameDraft.start.y, frameDraft.end.y),
+                width: Math.abs(frameDraft.end.x - frameDraft.start.x),
+                height: Math.abs(frameDraft.end.y - frameDraft.start.y),
+                border: `1px solid ${isDark ? '#d7ccb3' : '#8b7a52'}`,
+                background: isDark ? 'rgba(215,204,179,.08)' : 'rgba(139,122,82,.08)',
+                boxShadow: isDark ? '0 0 0 99999px rgba(0,0,0,.04)' : '0 0 0 99999px rgba(255,255,255,.02)',
+              }}
+            />
+          </ViewportPortal>
+        )}
+        {frameCreateMode && !frameDraft && (
+          <ViewportPortal>
+            <div
+              className={`pointer-events-none absolute rounded-md px-2 py-1 text-[11px] shadow ${
+                isDark ? 'bg-zinc-950/90 text-white/75' : 'bg-white/90 text-zinc-700'
+              }`}
+              style={(() => {
+                const pos = getViewportCenterFlowPosition();
+                return { left: pos.x - 72, top: pos.y - 18 };
+              })()}
+            >
+              拖动生成画框
+            </div>
+          </ViewportPortal>
+        )}
         {/* 瀵归綈杈呭姪绾?鍦ㄤ笘鐣屽潗鏍囩郴涓殢瑙嗗彛鍙樻崲 */}
         {(guides.vertical.length > 0 || guides.horizontal.length > 0) && (
           <ViewportPortal>
@@ -3027,6 +3268,77 @@ function CanvasInner({ onAddNodeRef, onSaveRef, interactionMode = 'select' }: Ca
                 })}
               </div>
             </div>
+
+            {framePanelVisible && (
+              <div className={`mb-3 rounded-lg border p-2 ${isDark ? 'border-white/10 bg-white/[0.035]' : 'border-black/8 bg-black/[0.025]'}`}>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className={isDark ? 'text-[10px] text-white/55' : 'text-[10px] text-zinc-600'}>画框尺寸</span>
+                  {frameCreateMode && (
+                    <button
+                      type="button"
+                      className={isDark ? 'text-[10px] text-white/45 hover:text-white' : 'text-[10px] text-zinc-500 hover:text-zinc-900'}
+                      onClick={cancelFrameCreateMode}
+                    >
+                      取消
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {FRAME_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={`rounded-md border px-2 py-1.5 text-left text-[10px] transition ${
+                        isDark ? 'border-white/10 bg-white/6 text-white/72 hover:border-lime-300/45 hover:bg-lime-300/10' : 'border-black/10 bg-white text-zinc-700 hover:border-lime-600/35 hover:bg-lime-50'
+                      }`}
+                      title={`${preset.group} ${preset.w}×${preset.h}`}
+                      onClick={() => applyFrameSizeChoice({ w: preset.w, h: preset.h, label: preset.label })}
+                    >
+                      <span className="block font-medium">{preset.label}</span>
+                      <span className={isDark ? 'text-white/35' : 'text-zinc-400'}>{preset.group}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-1.5">
+                  <input
+                    type="number"
+                    min={MIN_FRAME_CREATE_W}
+                    value={activeFrameW}
+                    onChange={(e) => {
+                      const w = Math.max(MIN_FRAME_CREATE_W, Number(e.target.value) || MIN_FRAME_CREATE_W);
+                      if (selectedFrameNode) updateSelectedFrameSize({ w, h: activeFrameH });
+                      else setCustomFrameSize((prev) => ({ ...prev, w }));
+                    }}
+                    className={inspectorInputClass}
+                    title="画框宽度"
+                  />
+                  <input
+                    type="number"
+                    min={MIN_FRAME_CREATE_H}
+                    value={activeFrameH}
+                    onChange={(e) => {
+                      const h = Math.max(MIN_FRAME_CREATE_H, Number(e.target.value) || MIN_FRAME_CREATE_H);
+                      if (selectedFrameNode) updateSelectedFrameSize({ w: activeFrameW, h });
+                      else setCustomFrameSize((prev) => ({ ...prev, h }));
+                    }}
+                    className={inspectorInputClass}
+                    title="画框高度"
+                  />
+                  <button
+                    type="button"
+                    className={`mt-1 rounded-md px-2 text-[10px] transition ${
+                      isDark ? 'bg-lime-300/16 text-lime-200 hover:bg-lime-300/24' : 'bg-lime-600 text-white hover:bg-lime-700'
+                    }`}
+                    onClick={() => applyFrameSizeChoice({ w: activeFrameW, h: activeFrameH, label: `${activeFrameW}×${activeFrameH}` })}
+                  >
+                    应用
+                  </button>
+                </div>
+                <div className={isDark ? 'mt-1.5 text-[10px] text-white/35' : 'mt-1.5 text-[10px] text-zinc-400'}>
+                  {selectedFrameNode ? '当前画框将按新尺寸调整' : '未选中画框时会在视口中心生成'}
+                </div>
+              </div>
+            )}
 
             <div className={isDark ? 'mb-1.5 text-[10px] text-white/45' : 'mb-1.5 text-[10px] text-zinc-500'}>文字设置</div>
             <div className="space-y-2">

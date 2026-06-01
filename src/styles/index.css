@@ -687,18 +687,25 @@ body.cut-mode .react-flow__edge .react-flow__edge-interaction {
 }
 
 @keyframes huazai-edge-flow {
-  from { stroke-dashoffset: 18; }
+  from { stroke-dashoffset: 164; }
   to { stroke-dashoffset: 0; }
 }
 
-.huazai-edge-flow-path {
-  stroke: var(--hz-accent, #111111);
-  stroke-width: 3;
+.huazai-edge-base-path {
+  stroke: var(--hz-line, #787878);
+  stroke-width: 1.4;
   stroke-linecap: round;
-  stroke-dasharray: 2 8;
-  animation: huazai-edge-flow 0.75s linear infinite;
+  opacity: 0.78;
+}
+
+.huazai-edge-flow-path {
+  stroke: #7ee35a;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 64 100;
+  animation: huazai-edge-flow 1.45s linear infinite;
   opacity: 0.95;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hz-accent, #111111) 34%, transparent));
+  filter: drop-shadow(0 0 5px rgba(126, 227, 90, .52));
 }
 
 /* Generic media resize handles use the same corner-mark language as drawing boards. */

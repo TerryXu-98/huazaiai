@@ -5,12 +5,12 @@ import { useUpdateNodeData } from './useUpdateNodeData';
 import { useThemeStore } from '../../stores/theme';
 
 const COLOR = '#d7ccb3';
-const MIN_W = 280;
-const MIN_H = 180;
+const MIN_W = 48;
+const MIN_H = 48;
 // 真实分辨率图像会按 naturalWidth/naturalHeight 显示，默认画框需要给 2K/4K 图像留足编排空间。
 // 在上一版 12000×8000 基础上再扩大 2 倍。
-const DEFAULT_W = 24000;
-const DEFAULT_H = 16000;
+const DEFAULT_W = 800;
+const DEFAULT_H = 800;
 const LEGACY_DEFAULT_W = 840;
 const LEGACY_DEFAULT_H = 560;
 const PREVIOUS_DEFAULT_W = 1200;

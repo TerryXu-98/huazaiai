@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
 import {
-  BaseEdge,
   EdgeLabelRenderer,
-  getBezierPath,
+  getStraightPath,
   useReactFlow,
   type EdgeProps,
 } from '@xyflow/react';
@@ -13,25 +12,19 @@ export default function DeletableEdge(props: EdgeProps) {
     id,
     sourceX,
     sourceY,
-    sourcePosition,
     targetX,
     targetY,
-    targetPosition,
     style,
     markerEnd,
     selected,
-    data,
   } = props;
   const { setEdges } = useReactFlow();
-  const flowActive = !!(data as any)?.flowActive;
 
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, labelX, labelY] = getStraightPath({
     sourceX,
     sourceY,
-    sourcePosition,
     targetX,
     targetY,
-    targetPosition,
   });
 
   const [hover, setHover] = useState(false);
@@ -58,21 +51,21 @@ export default function DeletableEdge(props: EdgeProps) {
 
   return (
     <>
-      <BaseEdge
+      <path
         id={id}
-        path={edgePath}
+        d={edgePath}
+        fill="none"
+        className="react-flow__edge-path huazai-edge-base-path"
         style={style}
         markerEnd={markerEnd}
-        interactionWidth={24}
+        pointerEvents="none"
       />
-      {flowActive && (
-        <path
-          d={edgePath}
-          fill="none"
-          className="huazai-edge-flow-path"
-          pointerEvents="none"
-        />
-      )}
+      <path
+        d={edgePath}
+        fill="none"
+        className="huazai-edge-flow-path"
+        pointerEvents="none"
+      />
       <path
         d={edgePath}
         fill="none"
